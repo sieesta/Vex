@@ -8,19 +8,19 @@ const ELEVENLABS_DEFAULT_MODEL = 'eleven_v3'
 const ORPHEUS_DEFAULT_MODEL = 'canopylabs/orpheus-v1-english'
 const ORPHEUS_VOICE = 'austin'
 
-// Natural conversational pace. ElevenLabs docs: speed 0.7–1.2, default 1.0;
-// extreme values hurt quality. Emotion now comes from audio tags and pauses,
-// not from slowing the voice to a crawl or speeding it up.
+// Keep emotion in the words, not in extreme voice settings. High `style` and
+// low `stability` make ElevenLabs perform — sigh, laugh, over-emote — which is
+// exactly what sounds fake on a short conversational line.
 const ELEVENLABS_EMOTION = {
-  chill: { stability: 0.5, similarity_boost: 0.78, style: 0.25, speed: 0.95 },
-  amused: { stability: 0.48, similarity_boost: 0.8, style: 0.4, speed: 0.98 },
-  sarcastic: { stability: 0.55, similarity_boost: 0.8, style: 0.3, speed: 0.94 },
-  annoyed: { stability: 0.45, similarity_boost: 0.82, style: 0.5, speed: 0.97 },
-  frustrated: { stability: 0.35, similarity_boost: 0.85, style: 0.65, speed: 1.0 },
-  unhinged: { stability: 0.3, similarity_boost: 0.88, style: 0.8, speed: 1.02 },
+  chill: { stability: 0.72, similarity_boost: 0.78, style: 0.12, speed: 0.98 },
+  amused: { stability: 0.68, similarity_boost: 0.8, style: 0.2, speed: 0.99 },
+  sarcastic: { stability: 0.7, similarity_boost: 0.8, style: 0.22, speed: 0.97 },
+  annoyed: { stability: 0.64, similarity_boost: 0.82, style: 0.28, speed: 0.98 },
+  frustrated: { stability: 0.6, similarity_boost: 0.84, style: 0.34, speed: 1.0 },
+  unhinged: { stability: 0.58, similarity_boost: 0.85, style: 0.38, speed: 1.0 },
 }
 
-const MAX_SPEECH_SPEED = 1.05
+const MAX_SPEECH_SPEED = 1.0
 
 /**
  * Map Vex's stage directions to ElevenLabs v3/v4 audio tags. These are
@@ -28,34 +28,27 @@ const MAX_SPEECH_SPEED = 1.05
  * the engine shout, sigh, laugh or cry instead of reading caps flatly.
  */
 const AUDIO_TAG_MAP = {
-  'screaming in frustration': 'shouting',
-  angry: 'angry',
-  'laughing hysterically': 'laughing harder',
   giggling: 'giggles',
   'dark chuckle': 'chuckles',
   'exasperated sigh': 'sighs',
-  'deep annoyed groan': 'sighs',
-  'rubbing temples': 'sighs',
-  'pauses to laugh': 'laughs',
-  'whispering tiredly': 'whispers',
-  'voice breaking': 'voice trembling with emotion',
-  sniffles: 'crying',
-  'teary laugh': 'crying, then laughing',
-  coughs: 'coughs',
-  'clears throat': 'clears throat',
   sarcastic: 'sarcastic',
   deadpan: 'deadpan',
   'mock sympathy': 'sympathetic',
-  cheerful: 'excited',
+  cheerful: 'warmly',
   warm: 'warmly',
 }
 
-function elevenLabsText(text) {
+function elevenLabsText(text, intensity = 0) {
   const raw = String(text || '')
-  const tags = [...raw.matchAll(/\[([^\]]+)\]/g)]
-    .map((match) => AUDIO_TAG_MAP[match[1].trim().toLowerCase()])
-    .filter(Boolean)
-    .slice(0, 2)
+  // Audio tags are a spice, not a default. At delivery 0/1 the line is read
+  // plainly; even at the ceiling we allow only one small tag.
+  const tags =
+    intensity >= 2
+      ? [...raw.matchAll(/\[([^\]]+)\]/g)]
+          .map((match) => AUDIO_TAG_MAP[match[1].trim().toLowerCase()])
+          .filter(Boolean)
+          .slice(0, 1)
+      : []
   const clean = prepareForSpeech(raw, { preserveEmphasis: true })
   return `${tags.map((tag) => `[${tag}]`).join(' ')} ${clean}`.trim()
 }
@@ -192,6 +185,17 @@ export async function getElevenLabsKeyStatus(keys = [], voiceId = '') {
   )
 }
 
+function elevenSettings(emotion, intensity) {
+  const expression = ELEVENLABS_EMOTION[emotion] || ELEVENLABS_EMOTION.chill
+  const level = Math.min(3, Math.max(0, Number(intensity) || 0))
+  return {
+    ...expression,
+    style: Math.min(0.4, expression.style * (0.7 + level * 0.1)),
+    speed: Math.min(expression.speed, MAX_SPEECH_SPEED),
+    use_speaker_boost: true,
+  }
+}
+
 async function requestElevenLabs(
   text,
   {
@@ -200,11 +204,12 @@ async function requestElevenLabs(
     voiceIds = {},
     model = ELEVENLABS_DEFAULT_MODEL,
     emotion = 'chill',
+    intensity = 0,
     abortSignal,
   } = {},
 ) {
   if (!keys.length || !voiceId) throw new Error('ElevenLabs is not available.')
-  const expression = ELEVENLABS_EMOTION[emotion] || ELEVENLABS_EMOTION.chill
+  const settings = elevenSettings(emotion, intensity)
 
   if (USE_PROXY) {
     const { blob } = await proxyCall(
@@ -213,11 +218,7 @@ async function requestElevenLabs(
         text,
         model,
         voiceId,
-        voice_settings: {
-          ...expression,
-          speed: Math.min(expression.speed, MAX_SPEECH_SPEED),
-          use_speaker_boost: true,
-        },
+        voice_settings: settings,
       },
       { abortSignal },
     )
@@ -287,12 +288,21 @@ export async function generateElevenLabsSpeech(
     voiceIds = {},
     model = ELEVENLABS_DEFAULT_MODEL,
     emotion = 'chill',
+    intensity = 0,
     abortSignal,
   } = {},
 ) {
-  const clean = elevenLabsText(text)
+  const clean = elevenLabsText(text, intensity)
   if (!clean) throw new Error('Nothing to say.')
-  return requestElevenLabs(clean, { keys, voiceId, voiceIds, model, emotion, abortSignal })
+  return requestElevenLabs(clean, {
+    keys,
+    voiceId,
+    voiceIds,
+    model,
+    emotion,
+    intensity,
+    abortSignal,
+  })
 }
 
 /**

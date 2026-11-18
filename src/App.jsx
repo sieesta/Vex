@@ -4,6 +4,7 @@ import { NoticeBanner } from './components/Banners'
 import ControlsPanel from './components/ControlsPanel'
 import VoiceOrb from './components/VoiceOrb'
 import { useBanterAgent } from './hooks/useBanterAgent'
+import { useLocalStorageState } from './hooks/useLocalStorage'
 import { emotionMeta } from './lib/emotions'
 
 const FIXED_VOICE = 'fil-PH-AngeloNeural'
@@ -33,11 +34,17 @@ function BrandMark({ accent }) {
 
 export default function App() {
   const [brainOpen, setBrainOpen] = useState(false)
+  const [delivery, setDelivery] = useLocalStorageState(
+    'vex.v1.delivery',
+    0,
+    (value) => Number.isInteger(value) && value >= 0 && value <= 3,
+  )
 
   const agent = useBanterAgent({
     voice: FIXED_VOICE,
     spiceMode: FIXED_SPICE_MODE,
     handsFree: FIXED_HANDS_FREE,
+    delivery,
   })
   const meta = emotionMeta(agent.emotion)
 
@@ -113,6 +120,9 @@ export default function App() {
         <footer className="pb-5">
           <ControlsPanel
             showSettings={false}
+            showDelivery
+            delivery={delivery}
+            onDeliveryChange={setDelivery}
             languageMode={agent.languageMode}
             onLanguageModeChange={agent.setLanguageMode}
             filipinoVoiceGender={agent.filipinoVoiceGender}

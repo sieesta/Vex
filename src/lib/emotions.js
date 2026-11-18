@@ -83,13 +83,40 @@ export function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))
 }
 
-export function emotionFromFrustration(score) {
-  if (score >= 88) return 'unhinged'
-  if (score >= 70) return 'frustrated'
-  if (score >= 55) return 'annoyed'
-  if (score >= 38) return 'sarcastic'
-  if (score >= 20) return 'amused'
+/**
+ * Bands have an entry and an exit threshold. A mood only changes when the
+ * score clearly crosses the exit point, so a borderline score can't flip the
+ * orb (and the few-shot examples) between calm and meltdown every other turn.
+ */
+const BANDS = [
+  { key: 'unhinged', enter: 88, exit: 80 },
+  { key: 'frustrated', enter: 70, exit: 62 },
+  { key: 'annoyed', enter: 55, exit: 47 },
+  { key: 'sarcastic', enter: 38, exit: 31 },
+  { key: 'amused', enter: 20, exit: 14 },
+]
+
+export function emotionFromFrustration(score, currentEmotion) {
+  const value = clamp(Number(score) || 0, 0, 100)
+  const held = currentEmotion && BANDS.find((band) => band.key === currentEmotion)
+  if (held && value >= held.exit) return held.key
+  for (const band of BANDS) {
+    if (value >= band.enter) return band.key
+  }
   return 'chill'
+}
+
+/**
+ * Frustration cools down between turns instead of sticking at a meltdown for
+ * the rest of the call. Friendly input cools faster; a long pause cools a
+ * little so an old argument doesn't dictate the next reply.
+ */
+export function applyFrustrationDecay(score, { sentiment = 'neutral', elapsedMs = 0 } = {}) {
+  let cooled = clamp(Number(score) || 0, 0, 100)
+  if (sentiment === 'friendly' || sentiment === 'teasing') cooled -= 3
+  else cooled -= 1.5
+  if (elapsedMs >= 30_000) cooled -= Math.min(4, Math.floor(elapsedMs / 30_000) * 2)
+  return Math.round(clamp(cooled, 0, 100))
 }
 
 export function emotionMeta(emotion) {

@@ -9,7 +9,7 @@ import { generateGeminiChat, generateGeminiSpeech } from '../lib/geminiTts'
 import { generateElevenLabsSpeech, generateGroqSpeech } from '../lib/voiceProviders'
 import { cancelBrowserSpeech, stripVocalTags } from '../lib/speech'
 import { useLocalStorageState } from './useLocalStorage'
-import { localSearchAction, preopenTab, runWebAction } from '../lib/webActions'
+import { buildSearchUrl, localSearchAction, preopenTab, runWebAction } from '../lib/webActions'
 
 const MAX_MESSAGES = 40
 const MAX_CONTEXT_MESSAGES = 12
@@ -90,7 +90,7 @@ function makeId() {
  * The full affective conversation engine: finite state machine, cumulative
  * frustration model, Gemini LLM, prioritized voice providers, browser fallbacks and barge-in.
  */
-export function useBanterAgent({ voice, spiceMode, handsFree }) {
+export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
   const [keyPool, setKeyPool] = useState([])
   const [voiceConfig, setVoiceConfig] = useState(EMPTY_VOICE_CONFIG)
   const [agentState, setAgentState] = useState('IDLE')
@@ -116,6 +116,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree }) {
   const [notice, setNotice] = useState(null)
   const [audioLevel, setAudioLevel] = useState(0)
   const [spectrum, setSpectrum] = useState(EMPTY_SPECTRUM)
+  const [searchLink, setSearchLink] = useState(null)
   const languageMode = 'taglish'
   const filipinoVoiceGender = 'male'
   const setLanguageMode = () => {}
@@ -133,8 +134,9 @@ export function useBanterAgent({ voice, spiceMode, handsFree }) {
   const frustrationRef = useRef(frustration)
   const emotionRef = useRef(emotion)
   const messagesRef = useRef(messages)
-  const settingsRef = useRef({ voice, spiceMode, handsFree, languageMode, filipinoVoiceGender })
-  settingsRef.current = { voice, spiceMode, handsFree, languageMode, filipinoVoiceGender }
+  const settingsRef = useRef({ voice, spiceMode, handsFree, delivery, languageMode, filipinoVoiceGender })
+  settingsRef.current = { voice, spiceMode, handsFree, delivery, languageMode, filipinoVoiceGender }
+  const lastTurnAtRef = useRef(Date.now())
 
   const poolRef = useRef(keyPool)
   const configRef = useRef(EMPTY_VOICE_CONFIG)
@@ -607,7 +609,13 @@ export function useBanterAgent({ voice, spiceMode, handsFree }) {
       })
 
       if (!markReady()) return
-      await playAudioElement(audio)
+      // Never let a stalled playback (autoplay policy, muted tab, headless)
+      // block the rest of the turn — e.g. opening the requested search tab.
+      const playLimit = Math.max(3000, Math.min(12000, text.length * 110))
+      await Promise.race([
+        playAudioElement(audio).catch(() => {}),
+        new Promise((resolve) => setTimeout(resolve, playLimit)),
+      ])
       meter.stop()
       if (audioUrlRef.current === url) {
         URL.revokeObjectURL(url)
@@ -646,6 +654,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree }) {
     let result = offlineAgentReply(text, {
       frustration: frustrationRef.current,
       spiceMode: settings.spiceMode,
+      deliveryLimit: settings.delivery,
       seed: messagesRef.current.length,
       recentReplies,
     })
@@ -653,6 +662,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree }) {
       result = offlineAgentReply(text, {
         frustration: frustrationRef.current,
         spiceMode: settings.spiceMode,
+        deliveryLimit: settings.delivery,
         seed: messagesRef.current.length + 1,
         recentReplies: [...recentReplies, offlineReplyRef.current],
       })
@@ -710,6 +720,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree }) {
         emotion: emotionRef.current,
         spiceMode: settings.spiceMode,
         sentiment,
+        delivery: settings.delivery,
         languageMode: settings.languageMode,
         filipinoVoiceGender: settings.filipinoVoiceGender,
         userText: text,
@@ -718,7 +729,10 @@ export function useBanterAgent({ voice, spiceMode, handsFree }) {
       const parse = (content) =>
         parseAgentResponse(content, {
           frustration: frustrationRef.current,
+          emotion: emotionRef.current,
           spiceMode: settings.spiceMode,
+          deliveryLimit: settings.delivery,
+          elapsedMs: Date.now() - lastTurnAtRef.current,
         })
 
       // Groq first — the fast studio line. Gemini only gets the leftover
@@ -777,10 +791,18 @@ export function useBanterAgent({ voice, spiceMode, handsFree }) {
 
     if (turn !== turnSeqRef.current || !mountedRef.current) return
 
-    const nextFrustration = clamp(frustrationRef.current + result.frustrationDelta, 0, 100)
-    const nextEmotion = result.emotion || emotionFromFrustration(nextFrustration)
+    const nextFrustration = clamp(
+      Number.isFinite(result.nextFrustration)
+        ? result.nextFrustration
+        : frustrationRef.current + result.frustrationDelta,
+      0,
+      100,
+    )
+    const nextEmotion = result.emotion || emotionFromFrustration(nextFrustration, emotionRef.current)
     updateMood(nextFrustration, nextEmotion)
+    lastTurnAtRef.current = Date.now()
     setSentiment(result.sentiment)
+    const intensity = clamp(Math.round(Number(result.delivery) || 0), 0, 3)
 
     // If Gemini/Groq were rate-limited they emit no action — still honour a
     // clear "search/open this" request from the user's own words.
@@ -812,6 +834,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree }) {
                 voiceIds: config.elevenlabsVoiceIds,
                 model: config.elevenlabsModel,
                 emotion: options.emotion,
+                intensity: options.intensity,
                 abortSignal: options.abortSignal,
               }),
           }
@@ -828,6 +851,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree }) {
                 model: config.geminiTtsModel,
                 voice: config.geminiTtsVoice,
                 languageMode: options.languageMode,
+                intensity: options.intensity,
                 abortSignal: options.abortSignal,
               }),
           }
@@ -869,6 +893,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree }) {
             provider.run({
               languageMode: settings.languageMode,
               emotion: nextEmotion,
+              intensity,
               abortSignal: controller.signal,
             }),
             Math.max(1500, Math.min(provider.timeoutMs + 2000, ttsDeadline - performance.now())),
@@ -900,21 +925,22 @@ export function useBanterAgent({ voice, spiceMode, handsFree }) {
 
     // Open the search only once Vex has finished his line. If the caller
     // barged in mid-reply, skip it — they clearly weren't waiting for it.
-    window.__vexTrace = `check:${Boolean(result.action)}:${result.action?.platform}:${speechSessionRef.current}:${sessionBeforeSpeak}`
-    console.error('[vex] action check', Boolean(result.action), result.action?.platform, turn, turnSeqRef.current, sessionBeforeSpeak, speechSessionRef.current)
     if (
       result.action &&
       turn === turnSeqRef.current &&
       mountedRef.current &&
       speechSessionRef.current === sessionBeforeSpeak + 1
     ) {
-      console.debug('[vex] web action', result.action, 'tab?', Boolean(searchTabRef.current))
       const opened = runWebAction(result.action, searchTabRef.current)
-      console.debug('[vex] web action opened?', opened)
       searchTabRef.current = null
-      if (!opened) {
+      if (opened) {
+        setSearchLink(null)
+      } else {
+        // Popup blocked: show a real link the user can tap on any device.
+        const url = buildSearchUrl(result.action)
+        if (url) setSearchLink({ url, platform: result.action.platform })
         pushNotice(
-          `Vex finished his line but the browser blocked the ${result.action.platform} tab. Allow popups and ask again.`,
+          `Your browser blocked the ${result.action.platform} tab — tap the link below to open it.`,
           'warning',
           9000,
         )
@@ -997,12 +1023,17 @@ export function useBanterAgent({ voice, spiceMode, handsFree }) {
     setNotice(null)
   }
 
+  function dismissSearchLink() {
+    setSearchLink(null)
+  }
+
   const actionsRef = useRef({})
   actionsRef.current = {
     togglePrimary,
     sendMessage,
     resetSession,
     dismissNotice,
+    dismissSearchLink,
     setLanguageMode,
     setFilipinoVoiceGender,
   }
@@ -1012,6 +1043,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree }) {
       sendMessage: (...args) => actionsRef.current.sendMessage(...args),
       resetSession: (...args) => actionsRef.current.resetSession(...args),
       dismissNotice: (...args) => actionsRef.current.dismissNotice(...args),
+      dismissSearchLink: (...args) => actionsRef.current.dismissSearchLink(...args),
       setLanguageMode: (...args) => actionsRef.current.setLanguageMode(...args),
       setFilipinoVoiceGender: (...args) => actionsRef.current.setFilipinoVoiceGender(...args),
     }),
@@ -1089,6 +1121,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree }) {
     interimTranscript,
     latency,
     notice,
+    searchLink,
     audioLevel,
     spectrum,
     languageMode,

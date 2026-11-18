@@ -72,13 +72,15 @@ export function truncateForOrpheus(input, max = 195) {
   return text.slice(0, max)
 }
 
+// Keep the browser fallback close to a normal speaking voice. Mood is carried
+// by the words; large pitch/rate swings make the fallback sound like a parody.
 const PROSODY = {
-  chill: { rate: 0.92, pitch: 1.0 },
-  amused: { rate: 0.98, pitch: 1.1 },
-  sarcastic: { rate: 0.89, pitch: 0.9 },
-  annoyed: { rate: 0.96, pitch: 0.88 },
-  frustrated: { rate: 1.0, pitch: 0.82 },
-  unhinged: { rate: 1.04, pitch: 0.72 },
+  chill: { rate: 0.98, pitch: 1.0 },
+  amused: { rate: 0.99, pitch: 1.03 },
+  sarcastic: { rate: 0.97, pitch: 0.98 },
+  annoyed: { rate: 0.98, pitch: 0.97 },
+  frustrated: { rate: 1.0, pitch: 0.95 },
+  unhinged: { rate: 1.0, pitch: 0.93 },
 }
 
 const MALE_HINTS = ['guy', 'david', 'mark', 'alex', 'daniel', 'george', 'ryan', 'male', 'arthur', 'fred']

@@ -10,18 +10,23 @@ function loadSdk() {
   return sdkPromise
 }
 
+// Delivery cues are deliberately small. The tag describes a tint in the
+// voice, never a performance to act out — the words do the emotional work.
 const PERFORMANCE_BY_TAG = {
-  giggling: 'Start with a short, genuine giggle, then continue with a grin in your voice.',
-  'dark chuckle': 'Give a brief mischievous chuckle before speaking, without sounding sinister.',
-  cheerful: 'Sound bright, bouncy and delighted, like you just heard something fun.',
-  warm: 'Sound relaxed, friendly and close, with a small smile.',
-  'exasperated sigh': 'Begin with a quick realistic sigh, then sound playfully fed up.',
-  sarcastic: 'Use a dry, playful teenage tease; make the irony obvious but affectionate.',
-  deadpan: 'Use a deliberately flat, comedic delivery, then add a tiny amused lift at the end.',
-  'mock sympathy': 'Sound overly sympathetic in a clearly playful, joking way.',
-  'pauses to laugh': 'Pause briefly as if trying not to laugh, then continue naturally.',
-  'rapid babbling': 'Speak quickly and excitedly, with tiny natural pauses so the words stay clear.',
+  giggling: 'A faint smile in the voice is enough. Do not actually laugh.',
+  'dark chuckle': 'Keep it to a small, dry hint of amusement.',
+  cheerful: 'Sound lightly pleased, without bouncing or performing.',
+  warm: 'Sound relaxed, friendly and close.',
+  'exasperated sigh': 'A hint of impatience in the tone. Do not actually sigh.',
+  sarcastic: 'A dry, gentle ironic edge. Keep it understated.',
+  deadpan: 'Flat and matter-of-fact, with no comic exaggeration.',
+  'mock sympathy': 'A slight playful warmth. Do not exaggerate it.',
+  'pauses to laugh': 'A very short natural beat, then continue. Do not laugh out loud.',
+  'rapid babbling': 'Speak a little quicker, but keep every word clear.',
 }
+
+const NEUTRAL_DELIVERY =
+  'Read this as a real person on a casual voice call: relaxed, conversational, unhurried. Use the words and punctuation for timing. Do not act, perform, add laughter, sighs, crying or sound effects that are not written. Keep a steady, everyday tone and stay consistent with the same voice.'
 
 function decodeBase64(value) {
   const binary = atob(value)
@@ -140,6 +145,7 @@ export async function generateGeminiSpeech(
     model = TTS_MODEL,
     voice = TTS_VOICE,
     languageMode = 'taglish',
+    intensity = 0,
     abortSignal,
   } = {},
 ) {
@@ -152,13 +158,15 @@ export async function generateGeminiSpeech(
   if (!spokenText) throw new Error('Nothing to say.')
 
   const performance =
-    PERFORMANCE_BY_TAG[vocalTag] ||
-    'Use lively, natural conversational timing with a playful smile and occasional tiny pauses.'
-  const voiceInstruction =
-    'Speak as the same natural teenage Filipino boy every time: warm, relaxed, and conversational, with a light youthful pitch. Use a CALM, unhurried conversational pace — take a small breath between clauses, pause briefly at commas and ellipses, and let each sentence land before the next. Never rush or run words together. Do not sound like a deep adult announcer, a baby, a cartoon, or an adult woman. '
+    intensity >= 2
+      ? PERFORMANCE_BY_TAG[vocalTag] ||
+        (intensity >= 3 ? 'Let a little more feeling show, but stay realistic.' : '')
+      : ''
+  const voiceInstruction = NEUTRAL_DELIVERY
+  const spokenPrompt = `${voiceInstruction} ${performance ? `${performance} ` : ''}${languageInstruction(languageMode)}Say only this exact line: ${spokenText}`
 
   if (USE_PROXY) {
-    const contents = `${voiceInstruction}${performance} ${languageInstruction(languageMode)}Say only this exact line naturally: ${spokenText}`
+    const contents = spokenPrompt
     const { blob } = await proxyCall('gemini-tts', { model, voice, contents }, { abortSignal })
     return blob
   }
@@ -172,7 +180,7 @@ export async function generateGeminiSpeech(
       })
       const response = await ai.models.generateContent({
         model,
-        contents: `${voiceInstruction}${performance} ${languageInstruction(languageMode)}Say only this exact line naturally: ${spokenText}`,
+        contents: spokenPrompt,
         config: {
           abortSignal,
           responseModalities: [Modality.AUDIO],

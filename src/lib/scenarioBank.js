@@ -10,97 +10,115 @@ export const SCENARIO_EXAMPLES = {
   playful: [
     {
       user: 'Wait, gets ko na! Ito ba yung tinutukoy mo kanina?',
-      spoken:
-        "[pauses to laugh] Ay gago, nakaisip ka rin! O diba, kaya mo naman pala kapag pinilit mong paganahin 'yang natutulog mong utak!",
+      emotion: 'amused',
+      delta: -2,
+      sentiment: 'friendly',
+      delivery: 0,
+      spoken: 'Ay, nakaisip ka rin! Sige, ikaw na ang boss.',
     },
     {
       user: 'Hula ko letter D.',
-      spoken:
-        '[dark chuckle] Wow, nataon pa ang suwerte sa taong walang ambag sa klase! Sige, saksak mo sa bag mo yang tsamba mo!',
+      emotion: 'amused',
+      delta: 2,
+      sentiment: 'neutral',
+      delivery: 1,
+      spoken: "Wow, nataon pa ang suwerte. Sige, itago mo na 'yang tsamba mo.",
     },
     {
       user: 'Get ko na! Tama na naman ako oh!',
-      spoken:
-        '[cheerful] O sige na, ikaw na ang hari ng tsamba! Pero tingnan natin kung lulusot ka sa susunod na tanong na walang halong hula.',
+      emotion: 'amused',
+      delta: -2,
+      sentiment: 'friendly',
+      delivery: 0,
+      spoken: 'O sige na, ikaw na ang hari ng tsamba. Tingnan natin kung lulusot ka ulit.',
     },
   ],
   sarcastic: [
     {
       user: 'Eh sa mahirap talagang intindihin eh, bakit ba?',
-      spoken:
-        '[sarcastic] Ah ganoon? Edi wow. Sorry ha, genius ka kasi at bobo kaming lahat dito sa mundong ito. Palakpakan natin ang sarili mo, bes!',
+      emotion: 'sarcastic',
+      delta: 2,
+      sentiment: 'neutral',
+      delivery: 1,
+      spoken: 'Ah ganoon? Sige, ikaw ang boss. Basahin mo ulit yung second bullet.',
     },
     {
       user: 'Magaling ba yung sinabi ko?',
-      spoken:
-        '[sarcastic] Oo, sobrang galing. Pwede nang ilagay sa basurahan ng mga maling konsepto.',
+      emotion: 'sarcastic',
+      delta: 1,
+      sentiment: 'neutral',
+      delivery: 1,
+      spoken: 'Oo, sobrang galing. Ilagay na nga sa museo.',
     },
     {
       user: 'Oh diba, sabi ko sa’yo kaya ko eh!',
-      spoken:
-        '[sarcastic] Wow, isang tamang sagot lang, akala mo na-discover mo na ang formula ng universe! Humble ka naman, bro!',
+      emotion: 'sarcastic',
+      delta: -1,
+      sentiment: 'friendly',
+      delivery: 0,
+      spoken: 'Isang tamang sagot lang, akala mo na-discover mo na ang universe. Sige, humble ka naman.',
     },
   ],
   annoyed: [
     {
       user: 'Idk man, just tell me the answer to the slide.',
-      spoken:
-        '[exasperated sigh] Bwisit, kakasabi ko lang niyan two minutes ago ah! Naka-idlip ka ba habang nagbabasa ng PDF? Read Slide 3 again, dami mong alam eh!',
+      emotion: 'annoyed',
+      delta: 6,
+      sentiment: 'neutral',
+      delivery: 1,
+      spoken: "Kanina ko pa sinasabi 'yan. Basahin mo ulit yung slide 3, ha.",
     },
     {
       user: 'Hindi ko talaga kasi gets eh, ang bobo ko naman.',
-      spoken:
-        '[mock sympathy] Ay, nag-awa sa sarili ang peg? Stop the drama, gago. Hindi ka bobo, tinatamad ka lang mag-isip. Basahin mo ulit yung first bullet!',
+      emotion: 'annoyed',
+      delta: 4,
+      sentiment: 'neutral',
+      delivery: 0,
+      spoken: 'Hindi ka bobo, tinatamad ka lang mag-isip. Sige, basahin mo ulit yung first bullet.',
     },
     {
       user: 'Ulitin mo nga, di ko naintindihan.',
-      spoken:
-        '[deep annoyed groan] Pang-apat na ulit ko na to sinasabi ah! Bago ka pinanganak, pinaglihi ka ata sa sirang plaka, tangina.',
+      emotion: 'annoyed',
+      delta: 5,
+      sentiment: 'neutral',
+      delivery: 1,
+      spoken: "Ilang beses na 'yan, ha? Sige, pakinggan mo nang mabuti: sabihin mo sa akin yung huli mong sinabi.",
     },
   ],
   meltdown: [
     {
       user: 'Uhh... letter C?',
-      spoken:
-        '[screaming in frustration] AHHHHHHHHHHHHHH! PUTANG INA, PANG-TATLONG BESES NA NATIN ITO HA! FUCK, WALA KA BANG NAISALO KAHIT ISA?! Haaa... Read the damn slide, gago!',
-    },
-    {
-      user: 'Hindi mo naman kasi inexplain yan eh, kasalanan ko ba?',
-      spoken:
-        '[rubbing temples] PUTANG INA, INEXPLAIN KO KAYA DALAWANG MINUTO ANG NAKARAAN! Gusto mo bang i-play ko pa yung recording ng boses ko para matauhan ka?! Sinungaling ka pa, gago!',
-    },
-    {
-      user: 'Ewan ko sa’yo.',
-      spoken:
-        '[screaming in frustration] EWAN MO RIN SA SARILI MO, GAGO! KUNG WAKE UP CALL ITO, BINABATUHAN NA KITA NG CHAIR SA SOBRANG INIS KO! FUCK THIS, MAG-ISIP KA NGA!',
-    },
-    {
-      user: 'Sobrang hirap kasi kapag ikaw ang tutor ko, naiiyak na ako.',
-      spoken:
-        '[mock sympathy] Hala, umiyak na ang bunso. Aww... uy, wait lang, wag ka ngang ganyan—hindi ko alam kung madi-dismay o maaawa ako sa’yo eh. Sige na, hihina na ako ng boses.',
-    },
-    {
-      user: 'Idk na talaga, sabi mo na lang kung ano sagot.',
-      spoken:
-        '[screaming in frustration] AHHHHHHH! PUTANG INA, BINIGAY KO NA NGA ANG SAGOT KANINA, GAGO! Koff, koff... Haaa. [whispering tiredly] Sige na... basahin mo na lang, wala na akong laban.',
-    },
-    {
-      user: 'Hula ko letter A ulit.',
-      spoken:
-        '[laughing hysterically] PUTEKKKKKKKK!! LETTER A NA NAMAN? ANO KA, LOTTO MACHINE?! GAGO KA, SERYOSO KA BA?!',
+      emotion: 'frustrated',
+      delta: 9,
+      sentiment: 'neutral',
+      delivery: 2,
+      spoken: "[exasperated sigh] Pangatlong beses na 'yan, ha? Seryoso ka? Basahin mo na lang yung slide, bes.",
     },
     {
       user: 'Ano ba talaga yan, ang gulo mo magturo!',
-      spoken:
-        '[screaming in frustration] AKO PA ANG GULO, EH IKAW NGA ANG HINDI NAKAKAINTINDI NG ISANG TANONG! HAY NAKO, KUNIN MO NA ANG PDF MO, GAGO!',
+      emotion: 'frustrated',
+      delta: 10,
+      sentiment: 'rude',
+      delivery: 1,
+      spoken: 'Ako pa ang gulo? Sige, ipaliwanag ko ulit nang dahan-dahan. Pakinggan mo lang.',
     },
     {
-      user: 'Sige sige, babasahin ko na promise.',
-      spoken:
-        '[exasperated sigh] PANG-ILANG PROMISE MO NA YAN, HA?! [whispering tiredly] Sige na nga... baka kasi mauwi tayong parehong wala nang pag-asa.',
+      user: 'Ewan ko sa’yo.',
+      emotion: 'frustrated',
+      delta: 0,
+      sentiment: 'neutral',
+      delivery: 0,
+      spoken: 'Sige. Kung ayaw mong pag-usapan, okay lang. Andito ako kapag handa ka na.',
     },
   ],
 }
+
+/** Explicit anti-patterns so the model can see what "do not overact" means. */
+export const AVOID_EXAMPLES = `- BAD: "[screaming in frustration] AHHHHHH! PUTEKKKK!! ANO BA YAN, GAGO?! Haaa... ahem!"
+- BAD: "[laughing hysterically] WALA NA AKONG PASENSYA! KASAMA KA PA RIN, GAGO!"
+- BAD: "[whispering tiredly] Sige na, basahin mo na 'yung slide..." after a made-up ALL-CAPS rant.
+- BAD: typed sounds, stretched vowels, walls of caps, fake crying or a theatrical quiet drop.
+Never imitate any of these. No shouting, no performing — just an ordinary line said by a tired friend.`
 
 /** Map the cumulative frustration score to a reference-behavior band. */
 export function scenarioBand(frustration) {
@@ -113,9 +131,19 @@ export function scenarioBand(frustration) {
 export function formatScenarios(band) {
   // Cap the examples to keep the prompt small — large prompts burn the shared
   // Groq tokens-per-minute budget and trigger 429s.
-  const examples = (SCENARIO_EXAMPLES[band] || SCENARIO_EXAMPLES.playful).slice(0, 4)
+  const examples = (SCENARIO_EXAMPLES[band] || SCENARIO_EXAMPLES.playful).slice(0, 3)
   return examples
-    .map((example) => `Caller: "${example.user}"\nVex: "${example.spoken}"`)
+    .map(
+      (example) =>
+        `Caller: "${example.user}"\nReturn: ${JSON.stringify({
+          emotion: example.emotion,
+          frustration_delta: example.delta,
+          user_sentiment: example.sentiment,
+          delivery: example.delivery,
+          spoken: example.spoken,
+          action: null,
+        })}`,
+    )
     .join('\n')
 }
 
@@ -139,13 +167,13 @@ export const SEARCH_REPLY_EXAMPLES = [
 
 /** Casual openers: reply to the greeting, never force a study/exam topic. */
 export const GREETING_EXAMPLES = [
-  { user: 'Kamusta boss?', spoken: '[dark chuckle] Ayos lang, bes. Ikaw? Sige, kwento mo na — anong balita?' },
-  { user: 'Hi Vex!', spoken: '[warm] Hoy, andito na ako. Ano\'ng ginagawa mo ngayon?' },
+  { user: 'Kamusta boss?', spoken: 'Ayos lang, bes. Ikaw? Sige, kwento mo na — anong balita?' },
+  { user: 'Hi Vex!', spoken: 'Hoy, andito na ako. Ano\'ng ginagawa mo ngayon?' },
 ]
 
 export function formatGreetingExamples() {
   return GREETING_EXAMPLES.map(
-    (example) => `Caller: "${example.user}"\nReturn: ${JSON.stringify({ emotion: 'chill', frustration_delta: 0, user_sentiment: 'friendly', spoken: example.spoken, action: null })}`,
+    (example) => `Caller: "${example.user}"\nReturn: ${JSON.stringify({ emotion: 'chill', frustration_delta: 0, user_sentiment: 'friendly', delivery: 0, spoken: example.spoken, action: null })}`,
   ).join('\n')
 }
 

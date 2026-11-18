@@ -5,6 +5,8 @@
  * Vercel env vars: GROQ_API_KEYS, GEMINI_API_KEYS, ELEVENLABS_API_KEYS,
  * ELEVENLABS_VOICE_ID, ELEVENLABS_VOICE_IDS (JSON map) — see .env.example.
  */
+import { synthesizeEdgeSpeech } from './edgeTts.js'
+
 const keys = (value) => String(value || '').split(/[\s,;]+/).map((k) => k.trim()).filter(Boolean)
 const env = (name, fallback) => String(process.env[name] || fallback)
 
@@ -15,19 +17,48 @@ let ELEVEN_VOICE = ''
 let ELEVEN_LEGACY_VOICE = ''
 let ELEVEN_VOICE_IDS = {}
 
-// The mascot sounds like a small creature, not a narrator. Laura is the
-// brightest pre-made voice in the shared library (~270Hz median), so she is the
-// default everywhere — including deployments whose old ELEVENLABS_VOICE_ID
-// still points at a retired clone. That legacy value is only a last resort.
-const MASCOT_VOICE_ID = 'FGY2WhTYpPnrIDTdsKH5' // Laura — bright, quirky, young
+// The mascot sounds like a small creature, not a narrator. Edge's Filipino
+// voice is the primary timbre: a native Taglish speaker who sounds like a real
+// friend on the line. The pitch/rate lift puts her in a small creature's range
+// while staying a real, natural speaker. ElevenLabs Bella is the fallback.
+const MASCOT_VOICE_ID = 'hpp4J3VqNfWAUOO0d1Us' // Bella — bright, high, playful
 const MASCOT_GEMINI_VOICE = 'Leda' // youngest, highest prebuilt Gemini voice
+
+const EDGE_VOICE = 'fil-PH-BlessicaNeural'
+const EDGE_LANG = 'fil-PH'
+const EDGE_PITCH = '+65Hz'
+const EDGE_RATE = '+22%'
+
+// Keep the delivery alive without turning it into a performance. These are
+// deliberately small deltas around the same bright baseline.
+const EDGE_PROSODY = {
+  chill: { pitch: '+65Hz', rate: '+22%' },
+  amused: { pitch: '+68Hz', rate: '+24%' },
+  sarcastic: { pitch: '+63Hz', rate: '+21%' },
+  annoyed: { pitch: '+61Hz', rate: '+23%' },
+  frustrated: { pitch: '+59Hz', rate: '+24%' },
+  unhinged: { pitch: '+57Hz', rate: '+25%' },
+}
+
+// Other language modes still get a native speaker rather than Blessica
+// mispronouncing the line. Taglish is the only mode the UI currently exposes.
+const EDGE_LANGUAGES = {
+  taglish: { voice: EDGE_VOICE, lang: EDGE_LANG },
+  tagalog: { voice: EDGE_VOICE, lang: EDGE_LANG },
+  english: { voice: EDGE_VOICE, lang: EDGE_LANG },
+  japanese: { voice: 'ja-JP-NanamiNeural', lang: 'ja-JP', pitch: '+25Hz', rate: '+10%' },
+  korean: { voice: 'ko-KR-SunHiNeural', lang: 'ko-KR', pitch: '+25Hz', rate: '+10%' },
+  spanish: { voice: 'es-ES-ElviraNeural', lang: 'es-ES', pitch: '+25Hz', rate: '+10%' },
+}
 
 function refreshConfig() {
   GROQ = keys(process.env.GROQ_API_KEYS)
   GEMINI = keys(process.env.GEMINI_API_KEYS)
   ELEVEN = keys(process.env.ELEVENLABS_API_KEYS)
-  ELEVEN_VOICE = env('ELEVENLABS_MASCOT_VOICE_ID', MASCOT_VOICE_ID)
-  ELEVEN_LEGACY_VOICE = env('ELEVENLABS_VOICE_ID', '')
+  // Force the mascot voice even when an old deployment still has a retired
+  // clone in ELEVENLABS_MASCOT_VOICE_ID. That value is only a rescue fallback.
+  ELEVEN_VOICE = MASCOT_VOICE_ID
+  ELEVEN_LEGACY_VOICE = env('ELEVENLABS_MASCOT_VOICE_ID', env('ELEVENLABS_VOICE_ID', ''))
   try {
     ELEVEN_VOICE_IDS = JSON.parse(process.env.ELEVENLABS_VOICE_IDS || '{}')
   } catch {
@@ -179,6 +210,23 @@ async function geminiChat(payload) {
   return { content }
 }
 
+async function edgeTts(res, payload) {
+  const mode = String(payload.languageMode || 'taglish')
+  const base = EDGE_LANGUAGES[mode] || EDGE_LANGUAGES.taglish
+  const emotion = String(payload.emotion || 'chill')
+  const useMascotProsody = base.voice === EDGE_VOICE
+  const prosody = useMascotProsody ? EDGE_PROSODY[emotion] || EDGE_PROSODY.chill : null
+
+  const bytes = await synthesizeEdgeSpeech({
+    text: payload.text,
+    voice: base.voice,
+    lang: base.lang,
+    pitch: prosody?.pitch || base.pitch || EDGE_PITCH,
+    rate: prosody?.rate || base.rate || EDGE_RATE,
+  })
+  return audio(res, bytes, 'audio/mpeg')
+}
+
 async function tts(res, provider, payload) {
   if (provider === 'elevenlabs-tts') {
     let lastError = null
@@ -290,6 +338,8 @@ export default async function handler(req, res) {
       groq: GROQ.length ? ['server'] : [],
       gemini: GEMINI.length ? ['server'] : [],
       elevenlabs: ELEVEN.length ? ['server'] : [],
+      edgeTts: 'server',
+      edgeTtsVoice: EDGE_VOICE,
       elevenlabsVoiceId: ELEVEN_VOICE ? 'server' : '',
       elevenlabsModel: env('ELEVENLABS_MODEL', 'eleven_v3'),
       groqChatModel: env('GROQ_CHAT_MODEL', 'openai/gpt-oss-120b'),
@@ -306,6 +356,7 @@ export default async function handler(req, res) {
     const { provider, payload = {} } = await readBody(req)
     if (provider === 'groq-chat') return json(res, 200, await groqChat(payload))
     if (provider === 'gemini-chat') return json(res, 200, await geminiChat(payload))
+    if (provider === 'edge-tts') return await edgeTts(res, payload)
     if (['elevenlabs-tts', 'gemini-tts', 'groq-tts'].includes(provider)) {
       return await tts(res, provider, payload)
     }

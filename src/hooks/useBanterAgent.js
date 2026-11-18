@@ -6,6 +6,7 @@ import { generateGroqChat } from '../lib/groq'
 import { EMPTY_VOICE_CONFIG, loadVoiceConfig } from '../lib/keySource'
 import { makeKeyRecord, summarizePool } from '../lib/keyPool'
 import { generateGeminiChat, generateGeminiSpeech } from '../lib/geminiTts'
+import { generateEdgeSpeech } from '../lib/edgeTts'
 import { generateElevenLabsSpeech, generateGroqSpeech } from '../lib/voiceProviders'
 import { cancelBrowserSpeech, stripVocalTags } from '../lib/speech'
 import { useLocalStorageState } from './useLocalStorage'
@@ -841,6 +842,24 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
     // Show the line immediately — don't make the caller wait for TTS to finish.
     showReply()
 
+    // Edge's native Filipino voice leads: it sounds like a real person speaking
+    // Taglish, not an American narrator reading Filipino. ElevenLabs is the
+    // first fallback if Microsoft's keyless endpoint is unreachable.
+    const edge =
+      config.edgeTts === 'server'
+        ? {
+            name: 'Edge TTS',
+            timeoutMs: 9000,
+            run: (options) =>
+              generateEdgeSpeech(result.spoken, {
+                languageMode: options.languageMode,
+                emotion: options.emotion,
+                intensity: options.intensity,
+                abortSignal: options.abortSignal,
+              }),
+          }
+        : null
+
     const eleven =
       config.elevenlabs.length && config.elevenlabsVoiceId
         ? {
@@ -892,9 +911,9 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
           }
         : null
 
-    // The mascot timbre lives in the multilingual engines. Orpheus only has
+    // The mascot timbre lives in the native voice engines. Orpheus only has
     // adult English voices, so it stays the last resort for every language.
-    const speechProviders = [eleven, gemini, orpheus].filter(Boolean)
+    const speechProviders = [edge, eleven, gemini, orpheus].filter(Boolean)
 
     if (speechProviders.length) {
       const ttsStarted = performance.now()

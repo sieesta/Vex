@@ -5,7 +5,7 @@
  */
 export const USE_PROXY = import.meta.env.PROD
 
-const AUDIO_PROVIDERS = new Set(['elevenlabs-tts', 'gemini-tts', 'groq-tts'])
+const AUDIO_PROVIDERS = new Set(['edge-tts', 'elevenlabs-tts', 'gemini-tts', 'groq-tts'])
 
 export async function proxyCall(provider, payload = {}, { abortSignal } = {}) {
   const response = await fetch('/api/voice', {

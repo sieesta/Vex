@@ -11,6 +11,8 @@ export const EMPTY_VOICE_CONFIG = Object.freeze({
   elevenlabsVoiceId: '',
   elevenlabsVoiceIds: {},
   elevenlabsModel: 'eleven_multilingual_v2',
+  edgeTts: '',
+  edgeTtsVoice: '',
   groqChatModel: 'openai/gpt-oss-120b',
   groqTtsModel: 'canopylabs/orpheus-v1-english',
   geminiChatModel: 'gemini-3.8-flash',

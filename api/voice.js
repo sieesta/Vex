@@ -14,6 +14,10 @@ let ELEVEN = []
 let ELEVEN_VOICE = ''
 let ELEVEN_VOICE_IDS = {}
 
+// Stale voice IDs are common (a clone gets deleted, keys move accounts). If the
+// configured voice is gone, retry once with the bright mascot voice.
+const ELEVEN_FALLBACK_VOICE = 'FGY2WhTYpPnrIDTdsKH5' // Laura — bright, quirky, young
+
 function refreshConfig() {
   GROQ = keys(process.env.GROQ_API_KEYS)
   GEMINI = keys(process.env.GEMINI_API_KEYS)
@@ -195,6 +199,22 @@ async function tts(res, provider, payload) {
           }),
         },
       )
+      if (voiceId !== ELEVEN_FALLBACK_VOICE && (response.status === 400 || response.status === 404)) {
+        // Most likely "voice not found". One retry with the mascot voice.
+        const retry = await fetch(
+          `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(ELEVEN_FALLBACK_VOICE)}?output_format=mp3_44100_128`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
+            body: JSON.stringify({
+              text: String(payload.text || ''),
+              model_id: payload.model || env('ELEVENLABS_MODEL', 'eleven_v3'),
+              voice_settings: payload.voice_settings || {},
+            }),
+          },
+        )
+        if (retry.ok) return audio(res, Buffer.from(await retry.arrayBuffer()))
+      }
       if (response.ok) return audio(res, Buffer.from(await response.arrayBuffer()))
       const detail = await response.text().catch(() => '')
       lastError = providerError(response, detail)
@@ -244,7 +264,7 @@ async function tts(res, provider, payload) {
           speechConfig: {
             voiceConfig: {
               prebuiltVoiceConfig: {
-                voiceName: payload.voice || env('GEMINI_TTS_VOICE', 'Puck'),
+                voiceName: payload.voice || env('GEMINI_TTS_VOICE', 'Leda'),
               },
             },
           },
@@ -274,7 +294,7 @@ export default async function handler(req, res) {
       groqTtsModel: env('GROQ_TTS_MODEL', 'canopylabs/orpheus-v1-english'),
       geminiChatModel: env('GEMINI_CHAT_MODEL', 'gemini-3.8-flash'),
       geminiTtsModel: env('GEMINI_TTS_MODEL', 'gemini-3.8-flash-tts'),
-      geminiTtsVoice: env('GEMINI_TTS_VOICE', 'Puck'),
+      geminiTtsVoice: env('GEMINI_TTS_VOICE', 'Leda'),
     })
   }
 

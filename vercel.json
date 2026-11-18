@@ -3,10 +3,14 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
-  "cleanUrls": true,
+  "functions": {
+    "api/voice.js": {
+      "maxDuration": 30
+    }
+  },
   "headers": [
     {
-      "source": "/api",
+      "source": "/api/voice",
       "headers": [{ "key": "Cache-Control", "value": "no-store" }]
     }
   ]

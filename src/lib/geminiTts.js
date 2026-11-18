@@ -2,31 +2,15 @@ import { USE_PROXY, proxyCall } from './proxy'
 
 const CHAT_MODEL = 'gemini-3.8-flash'
 const TTS_MODEL = 'gemini-3.8-flash-tts'
-const TTS_VOICE = 'Puck'
+// Leda is the youngest, highest prebuilt voice (~260Hz median), which gives the
+// mascot its small-creature timbre without any acting instructions.
+const TTS_VOICE = 'Leda'
 
 let sdkPromise = null
 function loadSdk() {
   if (!sdkPromise) sdkPromise = import('@google/genai')
   return sdkPromise
 }
-
-// Delivery cues are deliberately small. The tag describes a tint in the
-// voice, never a performance to act out — the words do the emotional work.
-const PERFORMANCE_BY_TAG = {
-  giggling: 'A faint smile in the voice is enough. Do not actually laugh.',
-  'dark chuckle': 'Keep it to a small, dry hint of amusement.',
-  cheerful: 'Sound lightly pleased, without bouncing or performing.',
-  warm: 'Sound relaxed, friendly and close.',
-  'exasperated sigh': 'A hint of impatience in the tone. Do not actually sigh.',
-  sarcastic: 'A dry, gentle ironic edge. Keep it understated.',
-  deadpan: 'Flat and matter-of-fact, with no comic exaggeration.',
-  'mock sympathy': 'A slight playful warmth. Do not exaggerate it.',
-  'pauses to laugh': 'A very short natural beat, then continue. Do not laugh out loud.',
-  'rapid babbling': 'Speak a little quicker, but keep every word clear.',
-}
-
-const NEUTRAL_DELIVERY =
-  'Read this as a real person on a casual voice call: relaxed, conversational, unhurried. Use the words and punctuation for timing. Do not act, perform, add laughter, sighs, crying or sound effects that are not written. Keep a steady, everyday tone and stay consistent with the same voice.'
 
 function decodeBase64(value) {
   const binary = atob(value)
@@ -119,51 +103,23 @@ export async function generateGeminiChat({
   throw lastError || new Error('Gemini chat failed.')
 }
 
-function languageInstruction(languageMode) {
-  if (languageMode === 'tagalog') {
-    return 'Speak this in natural, clear Filipino Tagalog. Do not translate it or add words. '
-  }
-  if (languageMode === 'taglish') {
-    return 'Speak this naturally in Filipino Taglish. Do not translate it or add words. '
-  }
-  if (languageMode === 'japanese') {
-    return 'Speak this in natural Japanese. Do not translate it or add words. '
-  }
-  if (languageMode === 'korean') {
-    return 'Speak this in natural Korean. Do not translate it or add words. '
-  }
-  if (languageMode === 'spanish') {
-    return 'Speak this in natural Spanish. Do not translate it or add words. '
-  }
-  return 'Speak this in natural English. Do not translate it or add words. '
-}
-
 export async function generateGeminiSpeech(
   text,
-  {
-    keys = [],
-    model = TTS_MODEL,
-    voice = TTS_VOICE,
-    languageMode = 'taglish',
-    intensity = 0,
-    abortSignal,
-  } = {},
+  { keys = [], model = TTS_MODEL, voice = TTS_VOICE, abortSignal } = {},
 ) {
   if (!keys.length && !USE_PROXY) throw new Error('Gemini speech is not available.')
 
   const { GoogleGenAI, Modality } = USE_PROXY ? {} : await loadSdk()
-  const rawText = String(text || '').trim()
-  const vocalTag = rawText.match(/^\[([^\]]+)\]\s*/)?.[1]?.toLowerCase()
-  const spokenText = rawText.replace(/^\[[^\]]+\]\s*/, '').trim()
+  const spokenText = String(text || '')
+    .replace(/^\[[^\]]+\]\s*/, '')
+    .trim()
   if (!spokenText) throw new Error('Nothing to say.')
 
-  const performance =
-    intensity >= 2
-      ? PERFORMANCE_BY_TAG[vocalTag] ||
-        (intensity >= 3 ? 'Let a little more feeling show, but stay realistic.' : '')
-      : ''
-  const voiceInstruction = NEUTRAL_DELIVERY
-  const spokenPrompt = `${voiceInstruction} ${performance ? `${performance} ` : ''}${languageInstruction(languageMode)}Say only this exact line: ${spokenText}`
+  // Gemini TTS reads exactly what it is given. Long style prompts leak into the
+  // waveform (a 5-word line came back as 40s of spoken direction), so send only
+  // the line and let Leda's youthful timbre carry the character. The reply is
+  // already written in the selected language, so no language cue is needed.
+  const spokenPrompt = spokenText
 
   if (USE_PROXY) {
     const contents = spokenPrompt

@@ -72,35 +72,41 @@ export function truncateForOrpheus(input, max = 195) {
   return text.slice(0, max)
 }
 
-// Keep the browser fallback close to a normal speaking voice. Mood is carried
-// by the words; large pitch/rate swings make the fallback sound like a parody.
+// The mascot is a small, bright creature: higher pitch, quick but still clear.
+// Mood shifts the colour slightly; the words still do most of the emotional work.
 const PROSODY = {
-  chill: { rate: 0.98, pitch: 1.0 },
-  amused: { rate: 0.99, pitch: 1.03 },
-  sarcastic: { rate: 0.97, pitch: 0.98 },
-  annoyed: { rate: 0.98, pitch: 0.97 },
-  frustrated: { rate: 1.0, pitch: 0.95 },
-  unhinged: { rate: 1.0, pitch: 0.93 },
+  chill: { rate: 1.04, pitch: 1.2 },
+  amused: { rate: 1.06, pitch: 1.24 },
+  sarcastic: { rate: 1.02, pitch: 1.18 },
+  annoyed: { rate: 1.05, pitch: 1.16 },
+  frustrated: { rate: 1.06, pitch: 1.14 },
+  unhinged: { rate: 1.07, pitch: 1.12 },
 }
 
-const MALE_HINTS = ['guy', 'david', 'mark', 'alex', 'daniel', 'george', 'ryan', 'male', 'arthur', 'fred']
-const FEMALE_HINTS = ['aria', 'zira', 'jenny', 'samantha', 'susan', 'hazel', 'female', 'hannah', 'karen', 'victoria', 'zoe']
+const BRIGHT_HINTS = [
+  'jenny', 'aria', 'zira', 'samantha', 'female', 'hazel', 'susan', 'karen',
+  'zoe', 'lily', 'michelle', 'ana', 'rosa', 'clara', 'emma',
+]
 
 export function isSpeechSynthesisAvailable() {
   return typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window
 }
 
-export function chooseBrowserVoice(voiceId) {
+export function chooseBrowserVoice(voiceId, { lang = 'en-US' } = {}) {
   if (!isSpeechSynthesisAvailable()) return null
   const voices = window.speechSynthesis.getVoices() || []
   if (!voices.length) return null
 
+  const base = String(lang || 'en-US').split('-')[0].toLowerCase()
+  const sameLanguage = voices.filter((voice) => String(voice.lang).toLowerCase().startsWith(`${base}-`))
   const english = voices.filter((voice) => /^en([-_]|$)/i.test(voice.lang))
-  const pool = english.length ? english : voices
-  const hints = voiceById(voiceId).gender === 'male' ? MALE_HINTS : FEMALE_HINTS
-  const byGender = pool.find((voice) => hints.some((hint) => voice.name.toLowerCase().includes(hint)))
+  const pool = sameLanguage.length ? sameLanguage : english.length ? english : voices
+
+  // The mascot is small and bright: prefer the higher, younger-sounding voice
+  // the platform offers, then fall back to anything natural or neural.
+  const bright = pool.find((voice) => BRIGHT_HINTS.some((hint) => voice.name.toLowerCase().includes(hint)))
   const natural = pool.find((voice) => /natural|neural|premium|enhanced/i.test(voice.name))
-  return byGender || natural || pool[0] || null
+  return bright || natural || pool[0] || null
 }
 
 export function cancelBrowserSpeech() {
@@ -114,7 +120,7 @@ export function cancelBrowserSpeech() {
 }
 
 /** Speak through the platform voice when Orpheus is unavailable. */
-export function browserSpeak(text, { emotion = 'chill', voiceId = 'troy' } = {}) {
+export function browserSpeak(text, { emotion = 'chill', voiceId = 'troy', lang = 'en-US' } = {}) {
   const clean = stripVocalTags(text)
   if (!clean || !isSpeechSynthesisAvailable()) return Promise.resolve()
 
@@ -123,9 +129,9 @@ export function browserSpeak(text, { emotion = 'chill', voiceId = 'troy' } = {})
       window.speechSynthesis.cancel()
       const utterance = new SpeechSynthesisUtterance(clean)
       const profile = PROSODY[emotion] || PROSODY.chill
-      const browserVoice = chooseBrowserVoice(voiceId)
+      const browserVoice = chooseBrowserVoice(voiceId, { lang })
 
-      utterance.lang = browserVoice?.lang || 'en-US'
+      utterance.lang = browserVoice?.lang || lang
       if (browserVoice) utterance.voice = browserVoice
       utterance.rate = profile.rate
       utterance.pitch = profile.pitch

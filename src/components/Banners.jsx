@@ -1,4 +1,17 @@
-import { AlertTriangle, Sparkles, X } from 'lucide-react'
+import { AlertTriangle, ExternalLink, Sparkles, X } from 'lucide-react'
+
+const PLATFORM_NAMES = {
+  youtube: 'YouTube',
+  facebook: 'Facebook',
+  tiktok: 'TikTok',
+  instagram: 'Instagram',
+  x: 'X',
+  reddit: 'Reddit',
+  google: 'Google',
+  github: 'GitHub',
+  spotify: 'Spotify',
+  linkedin: 'LinkedIn',
+}
 
 const TONES = {
   error: {
@@ -22,6 +35,39 @@ const TONES = {
     text: 'text-[#e7f2bd]',
     iconColor: 'text-acid',
   },
+}
+
+export function SearchLinkCard({ link, onDismiss }) {
+  if (!link) return null
+  const name = PLATFORM_NAMES[link.platform] || 'the page'
+
+  return (
+    <div className="animate-fade-in mt-3 flex w-full max-w-md items-center gap-3 rounded-[4px] border border-acid/25 border-l-2 border-l-acid bg-acid/[0.05] px-4 py-2.5">
+      <ExternalLink size={14} className="shrink-0 text-acid" />
+      <div className="min-w-0 flex-1">
+        <p className="text-[11.5px] leading-snug text-[#e7f2bd]">
+          Popup blocked — open {name} here instead.
+        </p>
+        <p className="truncate font-mono text-[9px] text-acid/60">{link.url}</p>
+      </div>
+      <a
+        href={link.url}
+        target="_blank"
+        rel="noreferrer"
+        className="shrink-0 rounded-full border border-acid/30 px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.14em] text-acid transition-colors hover:bg-acid/10"
+      >
+        open
+      </a>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Dismiss link"
+        className="grid size-5 shrink-0 place-items-center rounded-[2px] text-faint transition-colors hover:bg-cream/10 hover:text-cream"
+      >
+        <X size={12} />
+      </button>
+    </div>
+  )
 }
 
 export function NoticeBanner({ notice, onDismiss }) {

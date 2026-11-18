@@ -23,8 +23,6 @@ const INITIAL_LATENCY = {
   ttsMode: 'idle',
 }
 const EMPTY_SPECTRUM = Array(32).fill(0)
-const TAGALOG_MARKERS =
-  /\b(ang|ng|mga|hindi|oo|sige|ikaw|ako|mo|ka|na|ba|lang|naman|kasi|pero|talaga|grabe|ano|saan|bakit|paano|kuya|ate|po|opo|wala|meron|yung|ito|iyan|diyan|salamat|maganda|gago|tangina|puta|bwisit|bes)\b/i
 const LANGUAGE_META = {
   taglish: { recognition: 'fil-PH', browser: 'fil-PH' },
   tagalog: { recognition: 'fil-PH', browser: 'fil-PH' },
@@ -117,6 +115,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
   const [audioLevel, setAudioLevel] = useState(0)
   const [spectrum, setSpectrum] = useState(EMPTY_SPECTRUM)
   const [searchLink, setSearchLink] = useState(null)
+  const [webAction, setWebAction] = useState(null)
   const languageMode = 'taglish'
   const filipinoVoiceGender = 'male'
   const setLanguageMode = () => {}
@@ -154,6 +153,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
   const llmAbortRef = useRef(null)
   const ttsAbortRef = useRef(null)
   const searchTabRef = useRef(null)
+  const webActionTimerRef = useRef(null)
   const silenceTimerRef = useRef(null)
   const autoListenTimerRef = useRef(null)
   const mountedRef = useRef(true)
@@ -167,6 +167,25 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
 
   function pushNotice(message, tone = 'warning', ttl = 9000) {
     setNotice({ id: makeId(), message, tone, ttl })
+  }
+
+  // The mascot's laptop scene is short-lived: it borrows the same action that
+  // opens the real tab, then hands control back to the idle pose.
+  function showWebAction(action, phase = 'opening') {
+    if (!action) return
+    const id = makeId()
+    if (webActionTimerRef.current) clearTimeout(webActionTimerRef.current)
+    setWebAction({ platform: action.platform, query: action.query, phase, id })
+    webActionTimerRef.current = setTimeout(() => {
+      webActionTimerRef.current = null
+      setWebAction((current) => (current?.id === id ? null : current))
+    }, phase === 'blocked' ? 6000 : 1900)
+  }
+
+  function dismissWebAction() {
+    if (webActionTimerRef.current) clearTimeout(webActionTimerRef.current)
+    webActionTimerRef.current = null
+    setWebAction(null)
   }
 
   function clearAutoListen() {
@@ -873,12 +892,9 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
           }
         : null
 
-    // Orpheus is the English line. Taglish and other languages need the
-    // multilingual voices first, with Orpheus as the last-resort voice.
-    const mostlyEnglish = !TAGALOG_MARKERS.test(stripVocalTags(result.spoken))
-    const speechProviders = (
-      mostlyEnglish ? [orpheus, eleven, gemini] : [eleven, gemini, orpheus]
-    ).filter(Boolean)
+    // The mascot timbre lives in the multilingual engines. Orpheus only has
+    // adult English voices, so it stays the last resort for every language.
+    const speechProviders = [eleven, gemini, orpheus].filter(Boolean)
 
     if (speechProviders.length) {
       const ttsStarted = performance.now()
@@ -935,10 +951,12 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
       searchTabRef.current = null
       if (opened) {
         setSearchLink(null)
+        showWebAction(result.action, 'opening')
       } else {
         // Popup blocked: show a real link the user can tap on any device.
         const url = buildSearchUrl(result.action)
         if (url) setSearchLink({ url, platform: result.action.platform })
+        showWebAction(result.action, 'blocked')
         pushNotice(
           `Your browser blocked the ${result.action.platform} tab — tap the link below to open it.`,
           'warning',
@@ -999,6 +1017,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
       }
     }
     searchTabRef.current = null
+    dismissWebAction()
     turnSeqRef.current += 1
     speechSessionRef.current += 1
     llmAbortRef.current?.abort()
@@ -1034,6 +1053,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
     resetSession,
     dismissNotice,
     dismissSearchLink,
+    dismissWebAction,
     setLanguageMode,
     setFilipinoVoiceGender,
   }
@@ -1044,6 +1064,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
       resetSession: (...args) => actionsRef.current.resetSession(...args),
       dismissNotice: (...args) => actionsRef.current.dismissNotice(...args),
       dismissSearchLink: (...args) => actionsRef.current.dismissSearchLink(...args),
+      dismissWebAction: (...args) => actionsRef.current.dismissWebAction(...args),
       setLanguageMode: (...args) => actionsRef.current.setLanguageMode(...args),
       setFilipinoVoiceGender: (...args) => actionsRef.current.setFilipinoVoiceGender(...args),
     }),
@@ -1068,6 +1089,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
 
       clearTimeout(silenceTimerRef.current)
       clearTimeout(autoListenTimerRef.current)
+      clearTimeout(webActionTimerRef.current)
       llmAbortRef.current?.abort()
       ttsAbortRef.current?.abort()
       cancelBrowserSpeech()
@@ -1122,6 +1144,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
     latency,
     notice,
     searchLink,
+    webAction,
     audioLevel,
     spectrum,
     languageMode,

@@ -15,7 +15,7 @@ export const EMPTY_VOICE_CONFIG = Object.freeze({
   groqTtsModel: 'canopylabs/orpheus-v1-english',
   geminiChatModel: 'gemini-3.8-flash',
   geminiTtsModel: 'gemini-3.8-flash-tts',
-  geminiTtsVoice: 'Puck',
+  geminiTtsVoice: 'Leda',
   loaded: false,
 })
 

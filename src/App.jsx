@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import AgentBrainHUD from './components/AgentBrainHUD'
-import { NoticeBanner } from './components/Banners'
+import { NoticeBanner, SearchLinkCard } from './components/Banners'
 import ControlsPanel from './components/ControlsPanel'
-import VoiceOrb from './components/VoiceOrb'
+import VexMascot from './components/VexMascot'
 import { useBanterAgent } from './hooks/useBanterAgent'
 import { useLocalStorageState } from './hooks/useLocalStorage'
 import { emotionMeta } from './lib/emotions'
@@ -34,6 +34,7 @@ function BrandMark({ accent }) {
 
 export default function App() {
   const [brainOpen, setBrainOpen] = useState(false)
+  const [debugOpen, setDebugOpen] = useState(false)
   const [delivery, setDelivery] = useLocalStorageState(
     'vex.v1.delivery',
     0,
@@ -73,6 +74,14 @@ export default function App() {
             >
               brain
             </button>
+            <button
+              type="button"
+              onClick={() => setDebugOpen((open) => !open)}
+              aria-pressed={debugOpen}
+              className={buttonClass}
+            >
+              debug
+            </button>
             <button type="button" onClick={agent.resetSession} className={buttonClass}>
               reset
             </button>
@@ -102,19 +111,21 @@ export default function App() {
             {meta.label}
           </p>
 
-          <div className="w-full max-w-[19rem]">
-            <VoiceOrb
-              state={agent.agentState}
-              emotion={agent.emotion}
-              audioLevel={agent.audioLevel}
-              spectrum={agent.spectrum}
-              onPress={agent.togglePrimary}
-            />
-          </div>
+          <VexMascot
+            state={agent.agentState}
+            emotion={agent.emotion}
+            audioLevel={agent.audioLevel}
+            accent={meta.accent}
+            debug={debugOpen}
+            webAction={agent.webAction}
+            onPress={agent.togglePrimary}
+          />
 
           <p className="min-h-12 max-w-md px-2 text-center text-sm leading-relaxed text-zinc-300">
             {agent.interimTranscript || agent.lastReply}
           </p>
+
+          <SearchLinkCard link={agent.searchLink} onDismiss={agent.dismissSearchLink} />
         </main>
 
         <footer className="pb-5">

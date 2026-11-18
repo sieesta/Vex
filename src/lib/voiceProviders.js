@@ -6,21 +6,35 @@ import { USE_PROXY, proxyCall } from './proxy'
 // text in caps, which was the whole problem.
 const ELEVENLABS_DEFAULT_MODEL = 'eleven_v3'
 const ORPHEUS_DEFAULT_MODEL = 'canopylabs/orpheus-v1-english'
-const ORPHEUS_VOICE = 'austin'
+// Brightest of the Orpheus voices. This is only the last-resort engine, but it
+// should still sound like the mascot rather than a deep announcer.
+const ORPHEUS_VOICE = 'hannah'
 
 // Keep emotion in the words, not in extreme voice settings. High `style` and
 // low `stability` make ElevenLabs perform — sigh, laugh, over-emote — which is
-// exactly what sounds fake on a short conversational line.
+// exactly what sounds fake on a short conversational line. Speed runs a touch
+// quick: the mascot is a small, bright creature, not a deep announcer.
 const ELEVENLABS_EMOTION = {
-  chill: { stability: 0.72, similarity_boost: 0.78, style: 0.12, speed: 0.98 },
-  amused: { stability: 0.68, similarity_boost: 0.8, style: 0.2, speed: 0.99 },
-  sarcastic: { stability: 0.7, similarity_boost: 0.8, style: 0.22, speed: 0.97 },
-  annoyed: { stability: 0.64, similarity_boost: 0.82, style: 0.28, speed: 0.98 },
-  frustrated: { stability: 0.6, similarity_boost: 0.84, style: 0.34, speed: 1.0 },
-  unhinged: { stability: 0.58, similarity_boost: 0.85, style: 0.38, speed: 1.0 },
+  chill: { stability: 0.68, similarity_boost: 0.78, style: 0.16, speed: 1.04 },
+  amused: { stability: 0.64, similarity_boost: 0.8, style: 0.22, speed: 1.05 },
+  sarcastic: { stability: 0.66, similarity_boost: 0.8, style: 0.24, speed: 1.03 },
+  annoyed: { stability: 0.62, similarity_boost: 0.82, style: 0.28, speed: 1.04 },
+  frustrated: { stability: 0.59, similarity_boost: 0.84, style: 0.32, speed: 1.05 },
+  unhinged: { stability: 0.57, similarity_boost: 0.85, style: 0.36, speed: 1.06 },
 }
 
-const MAX_SPEECH_SPEED = 1.0
+const MAX_SPEECH_SPEED = 1.06
+
+// A configured voice can disappear (deleted clone, rotated key, shared account).
+// Rather than let that quietly kill the whole ElevenLabs path, fall back to the
+// brightest pre-made voices in the shared library. Measured on the same line,
+// Laura sits around 270Hz — the closest thing to the mascot's small-creature
+// timbre — so she leads, with Matilda (~247Hz) behind her.
+const ELEVEN_FALLBACK_VOICES = [
+  'FGY2WhTYpPnrIDTdsKH5', // Laura — bright, quirky, young
+  'XrExE9yKIg1WjnnlVkGX', // Matilda — upbeat
+  'hpp4J3VqNfWAUOO0d1Us', // Bella — bright, warm
+]
 
 /**
  * Map Vex's stage directions to ElevenLabs v3/v4 audio tags. These are
@@ -141,7 +155,11 @@ async function checkElevenKey(key, voiceId) {
       const limit = Number(subscription.character_limit) || 0
       const tier = String(subscription.tier || subscription.type || '').toLowerCase()
       const voices = voicesRes.ok ? (await voicesRes.json().catch(() => ({})))?.voices || [] : []
-      const voice = voices.find((item) => item.voice_id === voiceId)
+      const configured = voices.find((item) => item.voice_id === voiceId)
+      const substitute = configured
+        ? null
+        : ELEVEN_FALLBACK_VOICES.map((id) => voices.find((item) => item.voice_id === id)).find(Boolean)
+      const voice = configured || substitute || null
       const category = String(voice?.category || '').toLowerCase()
       const isCustom = category === 'generated' || category === 'cloned'
 
@@ -159,7 +177,10 @@ async function checkElevenKey(key, voiceId) {
         const left = limit > 0 ? Math.round((1 - used / limit) * 100) : null
         result = {
           available: true,
-          detail: `${voice.name || 'custom voice'}${left === null ? '' : ` · ${left}% quota left`}`,
+          voiceId: voice.voice_id,
+          detail: `${voice.name || 'custom voice'}${substitute ? ' (configured voice missing)' : ''}${
+            left === null ? '' : ` · ${left}% quota left`
+          }`,
         }
       }
     }
@@ -239,10 +260,13 @@ async function requestElevenLabs(
       failures.push(`${maskKey(chosen.key)}: ${health.detail}`)
       continue
     }
+    // The account may not own the configured voice; pre-flight resolves the
+    // brightest available substitute so audio still comes out in character.
+    const effectiveVoiceId = health.voiceId || chosenVoiceId
 
     try {
       const response = await fetch(
-        `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(chosenVoiceId)}?output_format=mp3_44100_128`,
+        `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(effectiveVoiceId)}?output_format=mp3_44100_128`,
         {
           method: 'POST',
           headers: {
@@ -252,11 +276,7 @@ async function requestElevenLabs(
           body: JSON.stringify({
             text,
             model_id: model,
-            voice_settings: {
-              ...expression,
-              speed: Math.min(expression.speed, MAX_SPEECH_SPEED),
-              use_speaker_boost: true,
-            },
+            voice_settings: settings,
           }),
           signal: abortSignal,
         },

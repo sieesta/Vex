@@ -252,7 +252,7 @@ export default function ControlsPanel({
       </form>
 
       <p className="mt-2 text-center font-mono text-[8px] uppercase tracking-[0.16em] text-zinc-600">
-        {!micSupported ? 'text only' : 'tap the orb to talk'}
+        {!micSupported ? 'text only' : 'tap Vex to talk'}
       </p>
     </div>
   )

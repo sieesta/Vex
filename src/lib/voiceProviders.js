@@ -153,15 +153,12 @@ async function checkElevenKey(key, voiceId) {
       const subscription = (await userRes.json())?.subscription || {}
       const used = Number(subscription.character_count) || 0
       const limit = Number(subscription.character_limit) || 0
-      const tier = String(subscription.tier || subscription.type || '').toLowerCase()
       const voices = voicesRes.ok ? (await voicesRes.json().catch(() => ({})))?.voices || [] : []
       const configured = voices.find((item) => item.voice_id === voiceId)
       const substitute = configured
         ? null
         : ELEVEN_FALLBACK_VOICES.map((id) => voices.find((item) => item.voice_id === id)).find(Boolean)
       const voice = configured || substitute || null
-      const category = String(voice?.category || '').toLowerCase()
-      const isCustom = category === 'generated' || category === 'cloned'
 
       if (limit > 0 && used >= limit) {
         result = { available: false, detail: 'character quota exhausted' }
@@ -169,11 +166,9 @@ async function checkElevenKey(key, voiceId) {
         result = { available: false, detail: 'quota nearly exhausted' }
       } else if (!voice) {
         result = { available: false, detail: 'voice not in this account' }
-      } else if (tier === 'free' && !isCustom) {
-        // Free accounts can use their OWN generated/cloned voices, but not
-        // ElevenLabs library/professional voices via the API.
-        result = { available: false, detail: 'free plan cannot use library voices' }
       } else {
+        // Pre-made voices work on free accounts too (verified against the live
+        // keys), so quota and ownership are the only things to pre-flight.
         const left = limit > 0 ? Math.round((1 - used / limit) * 100) : null
         result = {
           available: true,

@@ -12,17 +12,22 @@ let GROQ = []
 let GEMINI = []
 let ELEVEN = []
 let ELEVEN_VOICE = ''
+let ELEVEN_LEGACY_VOICE = ''
 let ELEVEN_VOICE_IDS = {}
 
-// Stale voice IDs are common (a clone gets deleted, keys move accounts). If the
-// configured voice is gone, retry once with the bright mascot voice.
-const ELEVEN_FALLBACK_VOICE = 'FGY2WhTYpPnrIDTdsKH5' // Laura — bright, quirky, young
+// The mascot sounds like a small creature, not a narrator. Laura is the
+// brightest pre-made voice in the shared library (~270Hz median), so she is the
+// default everywhere — including deployments whose old ELEVENLABS_VOICE_ID
+// still points at a retired clone. That legacy value is only a last resort.
+const MASCOT_VOICE_ID = 'FGY2WhTYpPnrIDTdsKH5' // Laura — bright, quirky, young
+const MASCOT_GEMINI_VOICE = 'Leda' // youngest, highest prebuilt Gemini voice
 
 function refreshConfig() {
   GROQ = keys(process.env.GROQ_API_KEYS)
   GEMINI = keys(process.env.GEMINI_API_KEYS)
   ELEVEN = keys(process.env.ELEVENLABS_API_KEYS)
-  ELEVEN_VOICE = env('ELEVENLABS_VOICE_ID', '')
+  ELEVEN_VOICE = env('ELEVENLABS_MASCOT_VOICE_ID', MASCOT_VOICE_ID)
+  ELEVEN_LEGACY_VOICE = env('ELEVENLABS_VOICE_ID', '')
   try {
     ELEVEN_VOICE_IDS = JSON.parse(process.env.ELEVENLABS_VOICE_IDS || '{}')
   } catch {
@@ -181,28 +186,17 @@ async function tts(res, provider, payload) {
       const key = pick('eleven', ELEVEN)
       if (!key) break
       const fromClient = String(payload.voiceId || '')
-      const voiceId =
-        fromClient && fromClient !== 'server' ? fromClient : ELEVEN_VOICE_IDS[key] || ELEVEN_VOICE
+      const voiceId = fromClient && fromClient !== 'server' ? fromClient : ELEVEN_VOICE
       if (!voiceId) {
         lastError = Object.assign(new Error('No ElevenLabs voice configured'), { status: 503 })
         break
       }
-      const response = await fetch(
-        `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
-          body: JSON.stringify({
-            text: String(payload.text || ''),
-            model_id: payload.model || env('ELEVENLABS_MODEL', 'eleven_v3'),
-            voice_settings: payload.voice_settings || {},
-          }),
-        },
-      )
-      if (voiceId !== ELEVEN_FALLBACK_VOICE && (response.status === 400 || response.status === 404)) {
-        // Most likely "voice not found". One retry with the mascot voice.
-        const retry = await fetch(
-          `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(ELEVEN_FALLBACK_VOICE)}?output_format=mp3_44100_128`,
+      // Per-account clones and the old default are fallbacks only: they rescue a
+      // key that cannot use the mascot voice, without changing the normal sound.
+      const fallbackVoice = ELEVEN_VOICE_IDS[key] || ELEVEN_LEGACY_VOICE || ''
+      const speak = (voice) =>
+        fetch(
+          `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=mp3_44100_128`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
@@ -213,7 +207,15 @@ async function tts(res, provider, payload) {
             }),
           },
         )
-        if (retry.ok) return audio(res, Buffer.from(await retry.arrayBuffer()))
+
+      let response = await speak(voiceId)
+      if (
+        fallbackVoice &&
+        fallbackVoice !== voiceId &&
+        (response.status === 400 || response.status === 404)
+      ) {
+        // Most likely this key cannot use the mascot voice. Try its own clone.
+        response = await speak(fallbackVoice)
       }
       if (response.ok) return audio(res, Buffer.from(await response.arrayBuffer()))
       const detail = await response.text().catch(() => '')
@@ -264,7 +266,7 @@ async function tts(res, provider, payload) {
           speechConfig: {
             voiceConfig: {
               prebuiltVoiceConfig: {
-                voiceName: payload.voice || env('GEMINI_TTS_VOICE', 'Leda'),
+                voiceName: payload.voice || env('GEMINI_MASCOT_VOICE', MASCOT_GEMINI_VOICE),
               },
             },
           },
@@ -294,7 +296,7 @@ export default async function handler(req, res) {
       groqTtsModel: env('GROQ_TTS_MODEL', 'canopylabs/orpheus-v1-english'),
       geminiChatModel: env('GEMINI_CHAT_MODEL', 'gemini-3.8-flash'),
       geminiTtsModel: env('GEMINI_TTS_MODEL', 'gemini-3.8-flash-tts'),
-      geminiTtsVoice: env('GEMINI_TTS_VOICE', 'Leda'),
+      geminiTtsVoice: env('GEMINI_MASCOT_VOICE', MASCOT_GEMINI_VOICE),
     })
   }
 

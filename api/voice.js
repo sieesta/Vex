@@ -223,6 +223,9 @@ async function edgeTts(res, payload) {
     lang: base.lang,
     pitch: prosody?.pitch || base.pitch || EDGE_PITCH,
     rate: prosody?.rate || base.rate || EDGE_RATE,
+    // A shout is louder, not higher-pitched: extra pitch is what makes it
+    // sound like overacting. The breathing pause comes from the shaped text.
+    volume: payload.shout ? '+6%' : '+0%',
   })
   return audio(res, bytes, 'audio/mpeg')
 }

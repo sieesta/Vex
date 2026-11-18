@@ -1,4 +1,4 @@
-import { prepareForSpeech, truncateForOrpheus } from './speech'
+import { hasLongShout, prepareForSpeech, truncateForOrpheus } from './speech'
 import { USE_PROXY, proxyCall } from './proxy'
 
 // Eleven v3 follows audio tags ([shouting], [sighs], [crying]...) for genuine
@@ -42,6 +42,7 @@ const ELEVEN_FALLBACK_VOICES = [
  * the engine shout, sigh, laugh or cry instead of reading caps flatly.
  */
 const AUDIO_TAG_MAP = {
+  shouting: 'shouting',
   giggling: 'giggles',
   'dark chuckle': 'chuckles',
   'exasperated sigh': 'sighs',
@@ -55,9 +56,12 @@ const AUDIO_TAG_MAP = {
 function elevenLabsText(text, intensity = 0) {
   const raw = String(text || '')
   // Audio tags are a spice, not a default. At delivery 0/1 the line is read
-  // plainly; even at the ceiling we allow only one small tag.
-  const tags =
-    intensity >= 2
+  // plainly. A genuine long shout is the one exception: v3 needs [shouting]
+  // or it reads the caps flatly. Everything else gets at most one small tag.
+  const shout = intensity >= 2 && hasLongShout(raw)
+  const tags = shout
+    ? ['shouting']
+    : intensity >= 2
       ? [...raw.matchAll(/\[([^\]]+)\]/g)]
           .map((match) => AUDIO_TAG_MAP[match[1].trim().toLowerCase()])
           .filter(Boolean)

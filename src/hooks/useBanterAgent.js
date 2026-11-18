@@ -7,8 +7,8 @@ import { EMPTY_VOICE_CONFIG, loadVoiceConfig } from '../lib/keySource'
 import { makeKeyRecord, summarizePool } from '../lib/keyPool'
 import { generateGeminiChat, generateGeminiSpeech } from '../lib/geminiTts'
 import { generateEdgeSpeech } from '../lib/edgeTts'
-import { generateElevenLabsSpeech, generateGroqSpeech } from '../lib/voiceProviders'
-import { cancelBrowserSpeech, stripVocalTags } from '../lib/speech'
+import { generateElevenLabsSpeech } from '../lib/voiceProviders'
+import { cancelBrowserSpeech, hasLongShout, stripVocalTags } from '../lib/speech'
 import { useLocalStorageState } from './useLocalStorage'
 import { buildSearchUrl, localSearchAction, preopenTab, runWebAction } from '../lib/webActions'
 
@@ -246,32 +246,6 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
       return { status: 'cooldown', cooldownUntil: Date.now() + seconds * 1000 }
     }
     return null
-  }
-
-  function noteKeySuccess(key) {
-    const entry = poolRef.current.find((item) => item.key === key)
-    if (!entry) return
-    patchEntry(entry.id, {
-      status: 'active',
-      cooldownUntil: null,
-      requestsUsed: (entry.requestsUsed || 0) + 1,
-      lastUsedAt: Date.now(),
-    })
-  }
-
-  function noteKeyError(key, error) {
-    if (error?.name === 'AbortError') return
-    const entry = poolRef.current.find((item) => item.key === key)
-    if (!entry) return
-    const patch = keyStatusFor(error)
-    if (patch) patchEntry(entry.id, patch)
-  }
-
-  function usableGroqKeys() {
-    const now = Date.now()
-    return poolRef.current
-      .filter((entry) => usableEntry(entry, now))
-      .map((entry) => entry.key)
   }
 
   async function runGroqChat({ systemInstruction, history, deadline = Infinity }) {
@@ -823,6 +797,8 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
     lastTurnAtRef.current = Date.now()
     setSentiment(result.sentiment)
     const intensity = clamp(Math.round(Number(result.delivery) || 0), 0, 3)
+    // A long vowel run is the only line that needs special voice handling.
+    const shout = hasLongShout(result.spoken)
 
     // If Gemini/Groq were rate-limited they emit no action — still honour a
     // clear "search/open this" request from the user's own words.
@@ -855,6 +831,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
                 languageMode: options.languageMode,
                 emotion: options.emotion,
                 intensity: options.intensity,
+                shout,
                 abortSignal: options.abortSignal,
               }),
           }
@@ -895,25 +872,9 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
           }
         : null
 
-    const orpheus =
-      config.groq.length > 0
-        ? {
-            name: 'Orpheus',
-            timeoutMs: 9000,
-            run: (options) =>
-              generateGroqSpeech(result.spoken, {
-                keys: usableGroqKeys(),
-                model: config.groqTtsModel,
-                abortSignal: options.abortSignal,
-                onKeySuccess: noteKeySuccess,
-                onKeyError: noteKeyError,
-              }),
-          }
-        : null
-
-    // The mascot timbre lives in the native voice engines. Orpheus only has
-    // adult English voices, so it stays the last resort for every language.
-    const speechProviders = [edge, eleven, gemini, orpheus].filter(Boolean)
+    // Orpheus/Groq TTS is retired: it overacts short lines and has no Filipino
+    // voice. Groq still powers the chat model, just never the mascot's audio.
+    const speechProviders = [edge, eleven, gemini].filter(Boolean)
 
     if (speechProviders.length) {
       const ttsStarted = performance.now()

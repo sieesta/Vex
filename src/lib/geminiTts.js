@@ -1,4 +1,5 @@
 import { USE_PROXY, proxyCall } from './proxy'
+import { prepareForSpeech } from './speech'
 
 const CHAT_MODEL = 'gemini-3.8-flash'
 const TTS_MODEL = 'gemini-3.8-flash-tts'
@@ -110,9 +111,9 @@ export async function generateGeminiSpeech(
   if (!keys.length && !USE_PROXY) throw new Error('Gemini speech is not available.')
 
   const { GoogleGenAI, Modality } = USE_PROXY ? {} : await loadSdk()
-  const spokenText = String(text || '')
-    .replace(/^\[[^\]]+\]\s*/, '')
-    .trim()
+  // Same shaping as the other engines: tags, emojis and stretched vowels are
+  // cleaned up, and a long shout becomes "AHH, AHH!!" with a real breath pause.
+  const spokenText = prepareForSpeech(text)
   if (!spokenText) throw new Error('Nothing to say.')
 
   // Gemini TTS reads exactly what it is given. Long style prompts leak into the

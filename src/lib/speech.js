@@ -21,6 +21,19 @@ export function stripVocalTags(text) {
 }
 
 /**
+ * True when the line contains a sustained vowel run like "AHHHHHHHHH!!!".
+ * Only those need the special shout treatment; ordinary caps do not.
+ */
+export function hasLongShout(text) {
+  const value = String(text || '')
+  return (
+    /([A-Za-z])([A-Za-z])\2{3,}(!+)/.test(value) || // AHHHHHHHHH!!!
+    /([A-Za-z])([A-Za-z])\2,\s*\1\2{2}!!/.test(value) || // AHH, AHH!!
+    /([A-Za-z])([A-Za-z])\2\.\.\.\s*\1\2{2}!!/.test(value) // AHH... AHH!!
+  )
+}
+
+/**
  * Normalize a Vex line before it goes to a TTS engine.
  *
  * Screaming in ALL CAPS and stretched letters like "AHHHHHHHHHHHHHH" are great
@@ -35,7 +48,15 @@ export function prepareForSpeech(input, { preserveEmphasis = false } = {}) {
   text = text.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '')
   text = text.replace(/[*_`#>~|]/g, '')
 
-  // Stretch letters: "AHHHHHHHH" -> "AHH" — enough strain, still pronounceable.
+  // A real long shout is not one flat robot scream. Give it a breath:
+  // "AHHHHHHHHH!!!" -> "AHH, AHH!!". The comma becomes a short pause in every
+  // engine, so the voice sounds like it caught a breath between the two bursts.
+  text = text.replace(
+    /([A-Za-z])([A-Za-z])\2{3,}(!+)/g,
+    (_, first, vowel, bangs) => `${first}${vowel.repeat(2)}, ${first}${vowel.repeat(2)}${bangs.slice(0, 2)}`,
+  )
+
+  // Ordinary stretches: "AHHHHHHHH" -> "AHH" — enough strain, still pronounceable.
   text = text.replace(/([A-Za-z])\1{2,}/g, (_, letter) => letter.repeat(3))
 
   // ElevenLabs treats CAPS as emphasis, so keep shouted words uppercase there.

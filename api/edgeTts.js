@@ -99,7 +99,11 @@ function escapeXml(value) {
 }
 
 function ssml({ text, voice, lang, pitch, rate, volume }) {
-  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${escapeXml(lang)}"><voice name="${escapeXml(voice)}"><prosody pitch="${escapeXml(pitch)}" rate="${escapeXml(rate)}" volume="${escapeXml(volume)}">${escapeXml(text)}</prosody></voice></speak>`
+  // The shaped text already carries the breath: "AHH, AHH!!". Edge reads the
+  // comma as a short pause — an SSML <break> element closes the Read Aloud
+  // socket, so punctuation is the reliable way to get the pause.
+  const spoken = escapeXml(text)
+  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${escapeXml(lang)}"><voice name="${escapeXml(voice)}"><prosody pitch="${escapeXml(pitch)}" rate="${escapeXml(rate)}" volume="${escapeXml(volume)}">${spoken}</prosody></voice></speak>`
 }
 
 /**

@@ -1,5 +1,5 @@
 import { USE_PROXY, proxyCall } from './proxy'
-import { prepareForSpeech } from './speech'
+import { hasLongShout, prepareForSpeech } from './speech'
 
 /**
  * Edge's Read Aloud voice is the mascot's primary timbre. It is proxied through
@@ -15,7 +15,7 @@ export async function generateEdgeSpeech(
   if (!clean) throw new Error('Nothing to say.')
   const { blob } = await proxyCall(
     'edge-tts',
-    { text: clean, languageMode, emotion, intensity },
+    { text: clean, languageMode, emotion, intensity, shout: hasLongShout(text) },
     { abortSignal },
   )
   return blob

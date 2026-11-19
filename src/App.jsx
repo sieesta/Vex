@@ -108,6 +108,7 @@ export default function App() {
           accent={meta.accent}
           ttsProvider={ttsProvider}
           onTtsProviderChange={setTtsProvider}
+          onClose={() => setBrainOpen(false)}
         />
 
         {historyOpen && (

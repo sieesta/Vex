@@ -71,6 +71,7 @@ export default function AgentBrainHUD({
   accent = '#ff6b35',
   ttsProvider = 'elevenlabs',
   onTtsProviderChange = () => {},
+  onClose = () => {},
 }) {
   const sentimentInfo = SENTIMENT_META[sentiment] || SENTIMENT_META.neutral
   const SentimentIcon = SENTIMENT_ICONS[sentimentInfo.icon] || Minus
@@ -90,24 +91,33 @@ export default function AgentBrainHUD({
     >
       <div className="overflow-hidden">
         <section className="panel overflow-hidden rounded-[10px]">
-          <div className="flex items-center justify-between gap-3 border-b hairline px-4 py-2.5">
-            <div className="flex min-w-0 items-center gap-2">
-              <Activity size={12} className="shrink-0 text-ember" />
+          <div className="flex items-center justify-between gap-2 border-b hairline px-3 py-1.5">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <Activity size={11} className="shrink-0 text-ember" />
               <span className="label-mono text-cream/80">agent brain</span>
-              <span className="hidden font-mono text-[8px] tracking-[0.16em] text-faint sm:inline">
-                / telemetry reel
+              <span className="hidden font-mono text-[7px] tracking-[0.12em] text-faint sm:inline">
+                / telemetry
               </span>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <span className="state-dot size-1 rounded-full bg-acid" aria-hidden="true" />
-              <span className="font-mono text-[7.5px] uppercase tracking-[0.18em] text-faint">
-                live · local session
+              <span className="hidden font-mono text-[7px] uppercase tracking-[0.12em] text-faint sm:inline">
+                live · local
               </span>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Minimize agent brain"
+                title="Minimize"
+                className="rounded-[2px] border border-white/10 px-1.5 py-0.5 text-faint transition-colors hover:border-white/25 hover:text-cream"
+              >
+                <Minus size={10} />
+              </button>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-px bg-cream/[0.07] lg:grid-cols-4">
-            <div className="bg-[#120d0a] p-4">
+            <div className="bg-[#120d0a] p-3">
               <div className="flex items-center justify-between">
                 <span className="label-mono">state machine</span>
                 <Cpu size={12} className="text-faint" />
@@ -143,7 +153,7 @@ export default function AgentBrainHUD({
               </p>
             </div>
 
-            <div className="bg-[#120d0a] p-4">
+            <div className="bg-[#120d0a] p-3">
               <div className="flex items-center justify-between">
                 <span className="label-mono">sentiment</span>
                 <Smile size={12} className="text-faint" />
@@ -151,7 +161,7 @@ export default function AgentBrainHUD({
               <div className="mt-3 flex items-center gap-2">
                 <SentimentIcon size={15} style={{ color: sentimentInfo.color }} strokeWidth={1.8} />
                 <span
-                  className="font-display text-[21px] capitalize leading-none tracking-[-0.01em]"
+                  className="font-display text-[18px] capitalize leading-none tracking-[-0.01em]"
                   style={{ color: sentimentInfo.color }}
                 >
                   {sentiment}
@@ -162,7 +172,7 @@ export default function AgentBrainHUD({
               </p>
             </div>
 
-            <div className="bg-[#120d0a] p-4">
+            <div className="bg-[#120d0a] p-3">
               <div className="flex items-center justify-between">
                 <span className="label-mono">turn latency</span>
                 <Clock size={12} className="text-faint" />
@@ -192,9 +202,10 @@ export default function AgentBrainHUD({
                 </span>
                 <MiniChip color={llm.color}>{llm.label}</MiniChip>
               </Chips>
-              <div className="mt-2.5 flex items-center gap-1.5">
-                <span className="label-mono mr-1">voice</span>
-                {[
+              <div className="mt-2 flex flex-col items-start gap-1">
+                <span className="label-mono">voice</span>
+                <div className="flex flex-wrap items-center gap-1">
+                  {[
                   { id: 'elevenlabs', label: 'ElevenLabs', color: '#c8e06a' },
                   { id: 'gemini', label: 'Gemini', color: '#8ab4ff' },
                 ].map((option) => {
@@ -218,8 +229,9 @@ export default function AgentBrainHUD({
                 })}
               </div>
             </div>
+            </div>
 
-            <div className="bg-[#120d0a] p-4">
+            <div className="bg-[#120d0a] p-3">
               <div className="flex items-center justify-between">
                 <span className="label-mono">frustration</span>
                 <Gauge size={12} className="text-faint" />
@@ -253,14 +265,14 @@ export default function AgentBrainHUD({
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 border-t hairline bg-cream/[0.02] px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <Database size={11} className="shrink-0 text-faint" />
+          <div className="flex flex-col gap-1.5 border-t hairline bg-cream/[0.02] px-3 py-1.5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+              <Database size={10} className="shrink-0 text-faint" />
               <span className="label-mono shrink-0">memory</span>
-              <span className="font-mono text-[9px] text-muted">{messages.length}/40 messages</span>
-              <span className="font-mono text-[9px] text-faint">
+              <span className="whitespace-nowrap font-mono text-[8px] text-muted">{messages.length}/40 msgs</span>
+              <span className="whitespace-nowrap font-mono text-[8px] text-faint">
                 · knows {memory.name || 'no name'}
-                {memory.facts.length ? ` · ${memory.facts.length} fact${memory.facts.length === 1 ? '' : 's'}` : ''}
+                {memory.facts.length ? ` · ${memory.facts.length}f` : ''}
               </span>
               <span className="hidden h-3 w-px bg-cream/10 sm:block" aria-hidden="true" />
               <span className="hidden min-w-0 truncate font-mono text-[9px] text-faint sm:block">

@@ -36,6 +36,7 @@ function BrandMark({ accent }) {
 export default function App() {
   const [brainOpen, setBrainOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [confirmReset, setConfirmReset] = useState(false)
   const [onboardSkipped, setOnboardSkipped] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
   const [ttsProvider, setTtsProvider] = useLocalStorageState(
@@ -85,7 +86,7 @@ export default function App() {
             >
               history
             </button>
-            <button type="button" onClick={agent.resetSession} className={buttonClass}>
+            <button type="button" onClick={() => setConfirmReset(true)} className={buttonClass}>
               reset
             </button>
           </div>
@@ -237,6 +238,41 @@ export default function App() {
           </p>
         </footer>
       </div>
+
+      {confirmReset && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-5 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Reset Vex"
+        >
+          <div className="w-full max-w-xs rounded-[12px] border border-white/10 bg-[#15100d] p-5 shadow-2xl">
+            <p className="font-display text-xl italic text-zinc-50">Reset Vex?</p>
+            <p className="mt-2 text-[11px] leading-relaxed text-zinc-400">
+              This erases your name, everything Vex remembers, and the whole conversation.
+            </p>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmReset(false)}
+                className={buttonClass}
+              >
+                no
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  agent.resetSession()
+                  setConfirmReset(false)
+                }}
+                className="rounded-full border border-[#ff5a45]/40 bg-[#ff5a45]/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[#ff8a7a] transition-colors hover:bg-[#ff5a45]/20"
+              >
+                yes, reset
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

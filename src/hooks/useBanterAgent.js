@@ -20,8 +20,8 @@ const IDLE_NUDGE_MS = 60_000
 // a row. Variants rotate so Vex never sounds like a broken record. Stretches
 // are preserved and voiced at full length.
 const MELTDOWN_LINES = [
-  "[screaming] AHHH!! [crying] Ayaw ko na... makipag-usap sa'yo... [frustrated sigh] Fuck.",
-  '[screaming] WALLAAAA KAAAA BAAANGGGG!!! [crying] Saaasaaabihinngggg matinoooo?... [frustrated sigh] Fuckkkkkkk.',
+  "[screaming] AHHH!! [crying] Ayaw ko na... makipag-usap sa'yo... [frustrated sigh] FUCK.",
+  '[screaming] WALLAAAA KAAAA BAAANGGGG!!! [crying] Saaasaaabihinngggg matinoooo?... [frustrated sigh] FUCKKKKKKK.',
 ]
 const INITIAL_REPLY = '[screaming] HOYYY! GISING!... magsalita ka naman [frustrated sigh].'
 const INITIAL_LATENCY = {

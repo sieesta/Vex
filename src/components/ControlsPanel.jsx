@@ -10,18 +10,8 @@ const LANGUAGES = [
   { id: 'spanish', label: 'Spanish', hint: 'Español · ES' },
 ]
 
-const DELIVERY_LEVELS = [
-  { id: 0, label: 'Natural', hint: 'Everyday speech, no performance' },
-  { id: 1, label: 'Soft', hint: 'A little warmth or dryness' },
-  { id: 2, label: 'Lively', hint: 'One small reaction when earned' },
-  { id: 3, label: 'Full', hint: 'Rare, brief outbursts' },
-]
-
 export default function ControlsPanel({
   showSettings = false,
-  showDelivery = false,
-  delivery = 0,
-  onDeliveryChange = () => {},
   languageMode = 'taglish',
   onLanguageModeChange = () => {},
   filipinoVoiceGender = 'male',
@@ -165,36 +155,6 @@ export default function ControlsPanel({
             </div>
           </div>
           <div className="my-3 h-px bg-cream/[0.07]" />
-        </>
-      )}
-
-      {showDelivery && (
-        <>
-          <div className="mb-3 flex items-center gap-2">
-            <span className="label-mono shrink-0">Delivery</span>
-            <div className="flex flex-1 gap-1">
-              {DELIVERY_LEVELS.map((level) => {
-                const active = level.id === delivery
-                return (
-                  <button
-                    key={level.id}
-                    type="button"
-                    onClick={() => onDeliveryChange(level.id)}
-                    aria-pressed={active}
-                    title={level.hint}
-                    className={`h-8 flex-1 rounded-[2px] text-[10px] font-medium tracking-tight transition-colors ${
-                      active
-                        ? 'bg-cream text-night'
-                        : 'bg-[#120d0a] text-muted hover:text-cream'
-                    }`}
-                  >
-                    {level.label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-          <div className="mb-3 h-px bg-cream/[0.07]" />
         </>
       )}
 

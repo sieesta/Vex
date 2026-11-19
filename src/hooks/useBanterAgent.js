@@ -6,9 +6,8 @@ import { generateGroqChat } from '../lib/groq'
 import { EMPTY_VOICE_CONFIG, loadVoiceConfig } from '../lib/keySource'
 import { makeKeyRecord, summarizePool } from '../lib/keyPool'
 import { generateGeminiChat, generateGeminiSpeech } from '../lib/geminiTts'
-import { generateEdgeSpeech } from '../lib/edgeTts'
 import { generateElevenLabsSpeech } from '../lib/voiceProviders'
-import { cancelBrowserSpeech, hasLongShout, stripVocalTags } from '../lib/speech'
+import { cancelBrowserSpeech, stripVocalTags } from '../lib/speech'
 import { useLocalStorageState } from './useLocalStorage'
 import { buildSearchUrl, localSearchAction, preopenTab, runWebAction } from '../lib/webActions'
 
@@ -883,9 +882,6 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
       }
     }
 
-    // A long vowel run is the only line that needs special voice handling.
-    const shout = hasLongShout(result.spoken)
-
     // If Gemini/Groq were rate-limited they emit no action — still honour a
     // clear "search/open this" request from the user's own words.
     if (!result.action) result.action = localSearchAction(text)
@@ -904,28 +900,8 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
     // Show the line immediately — don't make the caller wait for TTS to finish.
     showReply()
 
-    // Edge's native Filipino voice leads: it sounds like a real person speaking
-    // Taglish, not an American narrator reading Filipino. ElevenLabs is the
-    // first fallback if Microsoft's keyless endpoint is unreachable.
-    const edge =
-      config.edgeTts === 'server'
-        ? {
-            name: 'Edge TTS',
-            timeoutMs: 9000,
-            run: async (options) => {
-              const speech = await generateEdgeSpeech(result.spoken, {
-                languageMode: options.languageMode,
-                emotion: options.emotion,
-                intensity: options.intensity,
-                shout,
-                abortSignal: options.abortSignal,
-              })
-              result.words = speech.words || []
-              return speech.blob
-            },
-          }
-        : null
-
+    // ElevenLabs is the voice: a real, natural speaker reading the line. Gemini
+    // stays as the safety net if ElevenLabs is unavailable.
     const eleven =
       config.elevenlabs.length && config.elevenlabsVoiceId
         ? {
@@ -963,7 +939,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
 
     // Orpheus/Groq TTS is retired: it overacts short lines and has no Filipino
     // voice. Groq still powers the chat model, just never the mascot's audio.
-    const speechProviders = [edge, eleven, gemini].filter(Boolean)
+    const speechProviders = [eleven, gemini].filter(Boolean)
 
     if (speechProviders.length) {
       const ttsStarted = performance.now()

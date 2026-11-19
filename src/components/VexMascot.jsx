@@ -1,7 +1,5 @@
-import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import Mascot from './mascot/Mascot'
-import MascotDebugBar, { useSimulatedSpeech } from './mascot/MascotDebugBar'
 
 const EMOTION_TO_MASCOT = {
   chill: 'neutral',
@@ -11,8 +9,6 @@ const EMOTION_TO_MASCOT = {
   frustrated: 'angry',
   unhinged: 'angry',
 }
-
-const DEMO_PLATFORMS = ['youtube', 'google', 'tiktok', 'github']
 
 function mascotEmotion(state, emotion) {
   if (state === 'THINKING') return 'thinking'
@@ -26,30 +22,9 @@ function ariaLabelFor(state) {
   return 'Talk to Vex'
 }
 
-export default function VexMascot({ state, emotion, audioLevel, accent, debug, webAction, onPress }) {
-  const [forced, setForced] = useState(null)
-  const [simulating, setSimulating] = useState(false)
-  const [manualLevel, setManualLevel] = useState(0)
-  const [demoAction, setDemoAction] = useState(null)
-  const simulatedLevel = useSimulatedSpeech(debug && simulating)
-
-  useEffect(() => {
-    if (!demoAction) return undefined
-    const timer = setTimeout(() => setDemoAction(null), 2000)
-    return () => clearTimeout(timer)
-  }, [demoAction])
-
-  function simulateSite() {
-    setDemoAction((current) => {
-      const index = current ? (DEMO_PLATFORMS.indexOf(current.platform) + 1) % DEMO_PLATFORMS.length : 0
-      return { platform: DEMO_PLATFORMS[index], phase: 'opening', id: Date.now() }
-    })
-  }
-
-  const liveLevel = state === 'SPEAKING' ? audioLevel : 0
-  const level = !debug ? liveLevel : simulating ? simulatedLevel : manualLevel > 0 ? manualLevel : liveLevel
-  const shownEmotion = debug && forced ? forced : mascotEmotion(state, emotion)
-  const shownAction = debug && demoAction ? demoAction : webAction
+export default function VexMascot({ state, emotion, audioLevel, accent, webAction, onPress }) {
+  const level = state === 'SPEAKING' ? audioLevel : 0
+  const shownEmotion = mascotEmotion(state, emotion)
   const label = ariaLabelFor(state)
 
   return (
@@ -83,24 +58,11 @@ export default function VexMascot({ state, emotion, audioLevel, accent, debug, w
           <Mascot
             emotion={shownEmotion}
             audioLevel={level}
-            webAction={shownAction}
+            webAction={webAction}
             label={`Vex looks ${shownEmotion}`}
           />
         </button>
       </div>
-
-      {debug && (
-        <MascotDebugBar
-          forced={forced}
-          onForcedChange={setForced}
-          simulating={simulating}
-          onSimulatingChange={setSimulating}
-          manualLevel={manualLevel}
-          onManualLevelChange={setManualLevel}
-          level={simulatedLevel}
-          onSimulateSite={simulateSite}
-        />
-      )}
     </div>
   )
 }

@@ -4,7 +4,6 @@ import { NoticeBanner, SearchLinkCard } from './components/Banners'
 import ControlsPanel from './components/ControlsPanel'
 import VexMascot from './components/VexMascot'
 import { useBanterAgent } from './hooks/useBanterAgent'
-import { useLocalStorageState } from './hooks/useLocalStorage'
 import { emotionMeta } from './lib/emotions'
 
 const FIXED_VOICE = 'fil-PH-AngeloNeural'
@@ -34,18 +33,11 @@ function BrandMark({ accent }) {
 
 export default function App() {
   const [brainOpen, setBrainOpen] = useState(false)
-  const [debugOpen, setDebugOpen] = useState(false)
-  const [delivery, setDelivery] = useLocalStorageState(
-    'vex.v1.delivery',
-    0,
-    (value) => Number.isInteger(value) && value >= 0 && value <= 3,
-  )
 
   const agent = useBanterAgent({
     voice: FIXED_VOICE,
     spiceMode: FIXED_SPICE_MODE,
     handsFree: FIXED_HANDS_FREE,
-    delivery,
   })
   const meta = emotionMeta(agent.emotion)
 
@@ -73,14 +65,6 @@ export default function App() {
               className={buttonClass}
             >
               brain
-            </button>
-            <button
-              type="button"
-              onClick={() => setDebugOpen((open) => !open)}
-              aria-pressed={debugOpen}
-              className={buttonClass}
-            >
-              debug
             </button>
             <button type="button" onClick={agent.resetSession} className={buttonClass}>
               reset
@@ -127,7 +111,6 @@ export default function App() {
             emotion={agent.emotion}
             audioLevel={agent.audioLevel}
             accent={meta.accent}
-            debug={debugOpen}
             webAction={agent.webAction}
             onPress={agent.togglePrimary}
           />
@@ -167,9 +150,6 @@ export default function App() {
         <footer className="pb-5">
           <ControlsPanel
             showSettings={false}
-            showDelivery
-            delivery={delivery}
-            onDeliveryChange={setDelivery}
             languageMode={agent.languageMode}
             onLanguageModeChange={agent.setLanguageMode}
             filipinoVoiceGender={agent.filipinoVoiceGender}
@@ -181,7 +161,7 @@ export default function App() {
             micSupported={agent.recognitionSupported}
           />
           <p className="mt-3 text-center font-mono text-[8px] uppercase tracking-[0.18em] text-zinc-600">
-            {agent.studioOnline ? 'elevenlabs · gemini · groq' : 'offline · local vex'}
+            {agent.studioOnline ? 'elevenlabs · gemini' : 'offline · local vex'}
           </p>
         </footer>
       </div>

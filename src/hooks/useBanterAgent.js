@@ -29,7 +29,7 @@ const MELTDOWN_LINES = [
 const MELTDOWN_STYLE =
   'Distraught and angry Filipino accent. Start with a loud scream of frustration, then drop into a shaky, breathless, exhausted tone with heavy pauses.'
 const NAME_WELCOME_STYLE =
-  'Playful teasing Filipino friend. Say the insult jokingly, laugh big, then switch warm and friendly.'
+  'Playful teasing Filipino friend. Say the insult jokingly, burst into a big genuine laugh at HAHAHAHAHAAH, then switch warm and friendly for the greeting.'
 const INITIAL_REPLY = '[shouting] HOYYY! GISING!... magsalita ka naman [sighs].'
 const INITIAL_LATENCY = {
   llmMs: null,
@@ -1131,7 +1131,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
 
     if (nameGreeting && memoryRef.current.name) {
       const who = memoryRef.current.name
-      result.spoken = `Okay... FUCK YOU ${who}... HAHAHAHAHAAH joke lang Hi ${who}`
+      result.spoken = `Okay... FUCK YOU ${who}... [laughs] HAHAHAHAHAAH [warmly] joke lang Hi ${who}`
     }
 
     // Commit only facts the caller actually stated this turn. The name regex is
@@ -1172,7 +1172,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
       preserveStretch: meltdown || nameGreeting,
       preserveEmphasis: nameGreeting,
       forceShout: false,
-      preserveTags: meltdown,
+      preserveTags: meltdown || nameGreeting,
       style: meltdown ? MELTDOWN_STYLE : nameGreeting ? NAME_WELCOME_STYLE : '',
     })
     result.audio = speech.audio

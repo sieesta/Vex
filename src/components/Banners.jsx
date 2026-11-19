@@ -11,6 +11,7 @@ const PLATFORM_NAMES = {
   github: 'GitHub',
   spotify: 'Spotify',
   linkedin: 'LinkedIn',
+  chatgpt: 'ChatGPT',
 }
 
 const TONES = {

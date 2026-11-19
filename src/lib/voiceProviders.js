@@ -53,12 +53,12 @@ const AUDIO_TAG_MAP = {
   warm: 'warmly',
 }
 
-function elevenLabsText(text, intensity = 0) {
+function elevenLabsText(text, intensity = 0, { preserveStretch = false, forceShout = false } = {}) {
   const raw = String(text || '')
   // Audio tags are a spice, not a default. At delivery 0/1 the line is read
   // plainly. A genuine long shout is the one exception: v3 needs [shouting]
   // or it reads the caps flatly. Everything else gets at most one small tag.
-  const shout = intensity >= 2 && hasLongShout(raw)
+  const shout = forceShout || (intensity >= 2 && hasLongShout(raw))
   const tags = shout
     ? ['shouting']
     : intensity >= 2
@@ -67,7 +67,7 @@ function elevenLabsText(text, intensity = 0) {
           .filter(Boolean)
           .slice(0, 1)
       : []
-  const clean = prepareForSpeech(raw, { preserveEmphasis: true })
+  const clean = prepareForSpeech(raw, { preserveEmphasis: true, preserveStretch })
   return `${tags.map((tag) => `[${tag}]`).join(' ')} ${clean}`.trim()
 }
 
@@ -308,10 +308,12 @@ export async function generateElevenLabsSpeech(
     model = ELEVENLABS_DEFAULT_MODEL,
     emotion = 'chill',
     intensity = 0,
+    preserveStretch = false,
+    forceShout = false,
     abortSignal,
   } = {},
 ) {
-  const clean = elevenLabsText(text, intensity)
+  const clean = elevenLabsText(text, intensity, { preserveStretch, forceShout })
   if (!clean) throw new Error('Nothing to say.')
   return requestElevenLabs(clean, {
     keys,

@@ -106,14 +106,14 @@ export async function generateGeminiChat({
 
 export async function generateGeminiSpeech(
   text,
-  { keys = [], model = TTS_MODEL, voice = TTS_VOICE, abortSignal } = {},
+  { keys = [], model = TTS_MODEL, voice = TTS_VOICE, abortSignal, preserveStretch = false } = {},
 ) {
   if (!keys.length && !USE_PROXY) throw new Error('Gemini speech is not available.')
 
   const { GoogleGenAI, Modality } = USE_PROXY ? {} : await loadSdk()
   // Same shaping as the other engines: tags, emojis and stretched vowels are
   // cleaned up, and a long shout becomes "AHH, AHH!!" with a real breath pause.
-  const spokenText = prepareForSpeech(text)
+  const spokenText = prepareForSpeech(text, { preserveStretch })
   if (!spokenText) throw new Error('Nothing to say.')
 
   // Gemini TTS reads exactly what it is given. Long style prompts leak into the

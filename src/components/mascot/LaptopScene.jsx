@@ -12,6 +12,7 @@ const PLATFORM_TINT = {
   github: '#d7d7de',
   spotify: '#7ee787',
   linkedin: '#6fb6ff',
+  chatgpt: '#10a37f',
 }
 
 const PLATFORM_LABEL = {
@@ -25,6 +26,7 @@ const PLATFORM_LABEL = {
   github: 'GitHub',
   spotify: 'Spotify',
   linkedin: 'LinkedIn',
+  chatgpt: 'ChatGPT',
 }
 
 const PLATFORM_DOMAIN = {
@@ -38,6 +40,7 @@ const PLATFORM_DOMAIN = {
   github: 'github.com',
   spotify: 'spotify.com',
   linkedin: 'linkedin.com',
+  chatgpt: 'chatgpt.com',
 }
 
 const ENTER = { type: 'spring', stiffness: 170, damping: 18, mass: 0.7 }

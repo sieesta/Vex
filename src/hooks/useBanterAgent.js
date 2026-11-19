@@ -16,6 +16,10 @@ const MAX_CONTEXT_MESSAGES = 12
 const SILENCE_MS = 1400
 // How long Vex waits before checking in on a quiet caller.
 const IDLE_NUDGE_MS = 60_000
+// A deliberate, earned meltdown — only after the caller repeats themselves
+// three times in a row. Stretches are preserved and voiced at full length.
+const MELTDOWN_LINE =
+  'AHHHHHHHHHHHHHHHHHH!!! ayawwwwwww koooo... nnaaaaa makiiipagggguuuusaaaappppp... saaaaa iyooooooooooo'
 const INITIAL_REPLY = "You're on the air. Say something worth the static."
 const INITIAL_LATENCY = {
   llmMs: null,
@@ -60,6 +64,18 @@ function mergeMemory(current, additions = []) {
     facts.push(fact)
   }
   return { name, facts: facts.slice(-12) }
+}
+
+function repeatKey(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+/** True when the caller has now sent the exact same line three times running. */
+function isThirdRepeat(text, messages) {
+  const previous = (messages || []).filter((message) => message.role === 'user').map((message) => repeatKey(message.content))
+  if (previous.length < 2) return false
+  const current = repeatKey(text)
+  return current === previous[previous.length - 1] && current === previous[previous.length - 2]
 }
 
 /** A name said out loud is always remembered, even if the model omits "remember". */
@@ -701,7 +717,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
       }
       // Never let a stalled playback (autoplay policy, muted tab, headless)
       // block the rest of the turn — e.g. opening the requested search tab.
-      const playLimit = Math.max(3000, Math.min(12000, text.length * 110))
+      const playLimit = Math.max(5000, Math.min(45000, text.length * 220))
       await Promise.race([
         playAudioElement(audio).catch(() => {}),
         new Promise((resolve) => setTimeout(resolve, playLimit)),
@@ -744,7 +760,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
    * Turn a line into audio with the same provider order everywhere: ElevenLabs
    * first, Gemini as the safety net. Used by normal turns and idle check-ins.
    */
-  async function synthesizeLine(text, { emotion = 'chill', intensity = 0 } = {}) {
+  async function synthesizeLine(text, { emotion = 'chill', intensity = 0, preserveStretch = false, forceShout = false } = {}) {
     const config = configRef.current
     const eleven =
       config.elevenlabs.length && config.elevenlabsVoiceId
@@ -759,6 +775,8 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
                 model: config.elevenlabsModel,
                 emotion: options.emotion,
                 intensity: options.intensity,
+                preserveStretch: options.preserveStretch,
+                forceShout: options.forceShout,
                 abortSignal: options.abortSignal,
               }),
           }
@@ -776,6 +794,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
                 voice: config.geminiTtsVoice,
                 languageMode: settingsRef.current.languageMode,
                 intensity: options.intensity,
+                preserveStretch: options.preserveStretch,
                 abortSignal: options.abortSignal,
               }),
           }
@@ -797,7 +816,13 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
       const timeout = setTimeout(() => controller.abort(), provider.timeoutMs)
       try {
         const audio = await withHardTimeout(
-          provider.run({ emotion, intensity, abortSignal: controller.signal }),
+          provider.run({
+            emotion,
+            intensity,
+            preserveStretch,
+            forceShout,
+            abortSignal: controller.signal,
+          }),
           Math.max(1500, Math.min(provider.timeoutMs + 2000, ttsDeadline - performance.now())),
           provider.name,
         )
@@ -930,6 +955,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
     const text = String(rawText || '').replace(/\s+/g, ' ').trim()
     if (!text) return
 
+    const meltdown = isThirdRepeat(text, messagesRef.current)
     noteActivity()
     primeAudio()
     stopPlayback()
@@ -961,7 +987,25 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
     const canGroq = config.groq.length > 0 && poolRef.current.length > 0
     const canGemini = config.gemini.length > 0
 
-    if (!canGroq && !canGemini) {
+    if (meltdown) {
+      // Three identical messages in a row earns the one long, uncut meltdown.
+      // No model call — the line and its timing are deliberate, never random.
+      result = {
+        emotion: 'unhinged',
+        frustrationDelta: 0,
+        nextFrustration: 92,
+        sentiment: 'rude',
+        delivery: 3,
+        spoken: MELTDOWN_LINE,
+        action: null,
+        remember: [],
+      }
+      setLatency((previous) => ({
+        ...previous,
+        llmMs: 0,
+        llmEngine: 'local',
+      }))
+    } else if (!canGroq && !canGemini) {
       await new Promise((resolve) => setTimeout(resolve, 380))
       if (turn !== turnSeqRef.current || !mountedRef.current) return
       result = localReply(text, settings)
@@ -1093,7 +1137,12 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
     showReply()
 
     // ElevenLabs is the voice; Gemini is the safety net.
-    const speech = await synthesizeLine(result.spoken, { emotion: nextEmotion, intensity })
+    const speech = await synthesizeLine(result.spoken, {
+      emotion: nextEmotion,
+      intensity,
+      preserveStretch: meltdown,
+      forceShout: meltdown,
+    })
     result.audio = speech.audio
     result.ttsProvider = speech.provider
 

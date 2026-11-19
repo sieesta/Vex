@@ -41,23 +41,26 @@ export function hasLongShout(text) {
  * keeps the emotion (punctuation + the provider's emotion-tuned voice settings)
  * while making every word pronounceable.
  */
-export function prepareForSpeech(input, { preserveEmphasis = false } = {}) {
+export function prepareForSpeech(input, { preserveEmphasis = false, preserveStretch = false } = {}) {
   let text = stripVocalTags(input)
 
   // Emojis, markdown and stray glyphs are never spoken.
   text = text.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '')
   text = text.replace(/[*_`#>~|]/g, '')
 
-  // A real long shout is not one flat robot scream. Give it a breath:
-  // "AHHHHHHHHH!!!" -> "AHH, AHH!!". The comma becomes a short pause in every
-  // engine, so the voice sounds like it caught a breath between the two bursts.
-  text = text.replace(
-    /([A-Za-z])([A-Za-z])\2{3,}(!+)/g,
-    (_, first, vowel, bangs) => `${first}${vowel.repeat(2)}, ${first}${vowel.repeat(2)}${bangs.slice(0, 2)}`,
-  )
+  if (!preserveStretch) {
+    // A real long shout is not one flat robot scream. Give it a breath:
+    // "AHHHHHHHHH!!!" -> "AHH, AHH!!". The comma becomes a short pause in every
+    // engine, so the voice sounds like it caught a breath between the two bursts.
+    text = text.replace(
+      /([A-Za-z])([A-Za-z])\2{3,}(!+)/g,
+      (_, first, vowel, bangs) => `${first}${vowel.repeat(2)}, ${first}${vowel.repeat(2)}${bangs.slice(0, 2)}`,
+    )
 
-  // Ordinary stretches: "AHHHHHHHH" -> "AHH" — enough strain, still pronounceable.
-  text = text.replace(/([A-Za-z])\1{2,}/g, (_, letter) => letter.repeat(3))
+    // Ordinary stretches: "AHHHHHHHH" -> "AHH" — enough strain, still pronounceable.
+    text = text.replace(/([A-Za-z])\1{2,}/g, (_, letter) => letter.repeat(3))
+  }
+  // Earned meltdowns keep every vowel and get as long as the engine allows.
 
   // ElevenLabs treats CAPS as emphasis, so keep shouted words uppercase there.
   // Other engines spell caps out — title-case for them.
@@ -72,7 +75,7 @@ export function prepareForSpeech(input, { preserveEmphasis = false } = {}) {
   text = text.replace(/([,.!?;:])(?=[A-Za-z0-9])/g, '$1 ')
   text = text.replace(/\s+/g, ' ').trim()
 
-  return text.slice(0, 1200)
+  return text.slice(0, 5000)
 }
 
 /** Hard safety guard: Orpheus rejects inputs over 200 characters. */

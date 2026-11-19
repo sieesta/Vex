@@ -44,6 +44,10 @@ export const PLATFORMS = {
     aliases: ['linkedin'],
     url: (q) => `https://www.linkedin.com/search/results/all/?keywords=${enc(q)}`,
   },
+  chatgpt: {
+    aliases: ['chatgpt', 'chat gpt', 'gpt', 'openai', 'chat openai'],
+    url: (q) => `https://chatgpt.com/?q=${enc(q)}`,
+  },
 }
 
 export const PLATFORM_IDS = Object.keys(PLATFORMS)
@@ -59,6 +63,7 @@ const PLATFORM_LABELS = {
   github: 'GitHub',
   spotify: 'Spotify',
   linkedin: 'LinkedIn',
+  chatgpt: 'ChatGPT',
 }
 
 export function platformLabel(platform) {
@@ -105,7 +110,7 @@ export function localSearchAction(text) {
   if (!platform) return null
   const query = String(text || '')
     .replace(/^\s*(vex\s*,?\s*)?(i-search\s+mo|hanapin\s+mo|patingin\s+nga|patingin|buksan\s+mo|tingnan\s+mo|open|find|search\s+for|search)\b/gi, ' ')
-    .replace(/\b(youtube|yt|facebook|fb|tiktok|tt|instagram|ig|twitter|x\.com|reddit|google|github|spotify|linkedin)\b/gi, ' ')
+    .replace(/\b(youtube|yt|facebook|fb|tiktok|tt|instagram|ig|twitter|x\.com|reddit|google|github|spotify|linkedin|chatgpt|chat\s*gpt|gpt|openai)\b/gi, ' ')
     .replace(/^\s*(sa|ng|ung|yung|ang|ko|mo|na|lang)\b/gi, ' ')
     .replace(/[?.!,]+$/g, '')
     .replace(/\s+/g, ' ')
@@ -139,6 +144,15 @@ export function runWebAction(action, tab = null) {
     // WindowProxy's location can throw; opening the same target name navigates
     // it without touching a cross-origin object.
     const win = window.open(url, tab && !tab.closed ? 'vexSearchTab' : '_blank')
+    // ChatGPT may not honour ?q= on every version. Copy the prompt too, so a
+    // paste into the composer is always one keystroke away.
+    if (normalizePlatform(action?.platform) === 'chatgpt' && action?.query) {
+      try {
+        navigator.clipboard?.writeText(String(action.query))
+      } catch {
+        /* clipboard permission is optional */
+      }
+    }
     return Boolean(win) || Boolean(tab && !tab.closed)
   } catch {
     return false

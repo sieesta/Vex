@@ -30,7 +30,7 @@ const MELTDOWN_STYLE =
   'Distraught and angry Filipino accent. Start with a loud scream of frustration, then drop into a shaky, breathless, exhausted tone with heavy pauses.'
 const NAME_WELCOME_STYLE =
   'Playful teasing Filipino friend. Say the insult jokingly, laugh big, then switch warm and friendly.'
-const INITIAL_REPLY = '[shouting] YYY! GISING!... magsalita ka naman [sighs].'
+const INITIAL_REPLY = '[shouting] HOYYY! GISING!... magsalita ka naman [sighs].'
 const INITIAL_LATENCY = {
   llmMs: null,
   ttsMs: null,

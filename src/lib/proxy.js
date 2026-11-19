@@ -20,7 +20,19 @@ export async function proxyCall(provider, payload = {}, { abortSignal } = {}) {
       const detail = await response.text().catch(() => '')
       throw new Error(`${provider} failed (${response.status}): ${detail.slice(0, 200)}`)
     }
-    return { blob: await response.blob(), status: response.status }
+    const result = { blob: await response.blob(), status: response.status }
+    // Edge sends word boundaries so captions can follow the voice.
+    const encoded = response.headers.get('X-Vex-Words')
+    if (encoded) {
+      try {
+        const binary = atob(encoded)
+        const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
+        result.words = JSON.parse(new TextDecoder().decode(bytes))
+      } catch {
+        /* timings are optional; the caption still works without them */
+      }
+    }
+    return result
   }
 
   const data = await response.json().catch(() => ({}))

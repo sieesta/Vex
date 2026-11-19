@@ -64,6 +64,7 @@ export default function AgentBrainHUD({
   frustration,
   latency = {},
   messages = [],
+  memory = { name: '', facts: [] },
   handsFree,
   languageMode = 'taglish',
   studioOnline = false,
@@ -230,6 +231,10 @@ export default function AgentBrainHUD({
               <Database size={11} className="shrink-0 text-faint" />
               <span className="label-mono shrink-0">memory</span>
               <span className="font-mono text-[9px] text-muted">{messages.length}/40 messages</span>
+              <span className="font-mono text-[9px] text-faint">
+                · knows {memory.name || 'no name'}
+                {memory.facts.length ? ` · ${memory.facts.length} fact${memory.facts.length === 1 ? '' : 's'}` : ''}
+              </span>
               <span className="hidden h-3 w-px bg-cream/10 sm:block" aria-hidden="true" />
               <span className="hidden min-w-0 truncate font-mono text-[9px] text-faint sm:block">
                 last: {lastAssistant?.display ? `“${lastAssistant.display}”` : 'empty tape'}

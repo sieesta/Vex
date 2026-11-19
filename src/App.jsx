@@ -85,6 +85,16 @@ export default function App() {
             <button type="button" onClick={agent.resetSession} className={buttonClass}>
               reset
             </button>
+            {(agent.memory.name || agent.memory.facts.length > 0) && (
+              <button
+                type="button"
+                onClick={agent.forgetMemory}
+                className={buttonClass}
+                title="Forget everything Vex learned about you"
+              >
+                forget me
+              </button>
+            )}
           </div>
         </header>
 
@@ -97,6 +107,7 @@ export default function App() {
           frustration={agent.frustration}
           latency={agent.latency}
           messages={agent.messages}
+          memory={agent.memory}
           handsFree={FIXED_HANDS_FREE}
           languageMode={agent.languageMode}
           studioOnline={agent.studioOnline}
@@ -121,9 +132,34 @@ export default function App() {
             onPress={agent.togglePrimary}
           />
 
-          <p className="min-h-12 max-w-md px-2 text-center text-sm leading-relaxed text-zinc-300">
-            {agent.interimTranscript || agent.lastReply}
-          </p>
+          {agent.interimTranscript ? (
+            <p className="min-h-12 max-w-md px-2 text-center text-sm leading-relaxed text-zinc-300">
+              {agent.interimTranscript}
+            </p>
+          ) : agent.captionWords.length ? (
+            <p
+              className="min-h-12 max-w-md px-2 text-center text-sm leading-relaxed text-zinc-300"
+              aria-live="polite"
+            >
+              {agent.captionWords.map((word, index) => (
+                <span
+                  key={`${word.offset}-${index}`}
+                  className="rounded-[3px] px-0.5 transition-colors duration-150"
+                  style={
+                    index === agent.activeWord
+                      ? { color: '#0b1a1f', backgroundColor: meta.accent, boxShadow: `0 0 12px -2px ${meta.accent}` }
+                      : undefined
+                  }
+                >
+                  {word.text}{' '}
+                </span>
+              ))}
+            </p>
+          ) : (
+            <p className="min-h-12 max-w-md px-2 text-center text-sm leading-relaxed text-zinc-300">
+              {agent.lastReply}
+            </p>
+          )}
 
           <SearchLinkCard link={agent.searchLink} onDismiss={agent.dismissSearchLink} />
         </main>

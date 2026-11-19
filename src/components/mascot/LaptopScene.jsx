@@ -27,7 +27,25 @@ const PLATFORM_LABEL = {
   linkedin: 'LinkedIn',
 }
 
+const PLATFORM_DOMAIN = {
+  youtube: 'youtube.com',
+  facebook: 'facebook.com',
+  tiktok: 'tiktok.com',
+  instagram: 'instagram.com',
+  x: 'x.com',
+  reddit: 'reddit.com',
+  google: 'google.com',
+  github: 'github.com',
+  spotify: 'spotify.com',
+  linkedin: 'linkedin.com',
+}
+
 const ENTER = { type: 'spring', stiffness: 170, damping: 18, mass: 0.7 }
+
+const short = (value, max) => {
+  const text = String(value || '')
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text
+}
 
 /**
  * The little laptop Vex pulls in when a web action fires. Everything animates
@@ -85,6 +103,7 @@ export default function LaptopScene({ action, uid }) {
   const screen = `${uid}screen`
   const glow = `${uid}glow`
   const key = `${uid}key`
+  const screenClip = `${uid}screenClip`
 
   return (
     <motion.g initial={{ x: 46, y: 54, opacity: 0 }} animate={controls}>
@@ -118,6 +137,7 @@ export default function LaptopScene({ action, uid }) {
             <rect x="-46" y="-63" width="92" height="52" rx="4" fill={`url(#${screen})`} />
             <rect x="-46" y="-63" width="92" height="52" rx="4" fill={tint} opacity="0.12" />
 
+            <g clipPath={`url(#${screenClip})`}>
             {/* Browser chrome */}
             <path d="M -46 -52 h 92" stroke="#ffffff" strokeOpacity="0.22" strokeWidth="1.5" />
             <circle cx="-38" cy="-57.5" r="2.4" fill="#ff8a8a" />
@@ -140,22 +160,78 @@ export default function LaptopScene({ action, uid }) {
               {blocked ? 'blocked' : label}
             </text>
 
-            {/* Page skeleton + loading shimmer */}
-            <rect x="-36" y="-43" width="28" height="6" rx="3" fill="#ffffff" opacity="0.5" />
-            <rect x="-36" y="-31" width="62" height="4" rx="2" fill="#ffffff" opacity="0.28" />
-            <rect x="-36" y="-23" width="48" height="4" rx="2" fill="#ffffff" opacity="0.22" />
+            {/* A tiny fake results page: favicon, domain, the searched query,
+                and one result row that resolves while the bar fills. */}
+            <motion.g
+              initial={{ opacity: 0, y: 3 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: reduceMotion ? 0 : 0.25, delay: reduceMotion ? 0 : 0.42 }}
+            >
+              <rect x="-37" y="-47" width="12" height="12" rx="3" fill={tint} />
+              <text
+                x="-31"
+                y="-38.6"
+                textAnchor="middle"
+                fontSize="7"
+                fontWeight="700"
+                fill="#082028"
+              >
+                {label[0]}
+              </text>
+              <text x="-21" y="-38.5" fontSize="6.5" fill="#dff7f1">
+                {PLATFORM_DOMAIN[platform] || 'the web'}
+              </text>
+              <text x="-21" y="-31" fontSize="4.8" fill="#8fb6b0">
+                {blocked ? 'tab blocked' : 'search results'}
+              </text>
+            </motion.g>
+
+            <motion.g
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: reduceMotion ? 0 : 0.25, delay: reduceMotion ? 0 : 0.56 }}
+            >
+              <rect
+                x="-37"
+                y="-28"
+                width="66"
+                height="8"
+                rx="3"
+                fill="#071a20"
+                stroke={tint}
+                strokeOpacity="0.55"
+              />
+              <text x="-34" y="-22.6" fontSize="5.4" fill="#bfe9e0">
+                {short(action?.query, 34) || label}
+              </text>
+            </motion.g>
+
+            <motion.g
+              initial={{ opacity: 0, x: -3 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: reduceMotion ? 0 : 0.25, delay: reduceMotion ? 0 : 0.72 }}
+            >
+              <rect x="-37" y="-19" width="6" height="6" rx="1.5" fill={tint} opacity="0.85" />
+              <rect x="-28" y="-18" width="44" height="2.6" rx="1.3" fill="#ffffff" opacity="0.42" />
+              <rect x="-28" y="-13.5" width="30" height="2" rx="1" fill="#ffffff" opacity="0.2" />
+              <rect x="-37" y="-11" width="6" height="6" rx="1.5" fill={tint} opacity="0.4" />
+              <rect x="-28" y="-10" width="34" height="2.2" rx="1.1" fill="#ffffff" opacity="0.24" />
+            </motion.g>
+
+            {/* Loading/progress bar across the bottom of the page */}
             <motion.rect
               x="-36"
-              y="-11"
+              y="-7"
               width="52"
-              height="5"
-              rx="2.5"
+              height="2.5"
+              rx="1.25"
               fill={tint}
               initial={false}
               animate={action ? { scaleX: [0.1, 1] } : { scaleX: 0.1 }}
               transition={{ duration: reduceMotion ? 0 : 0.9, delay: reduceMotion ? 0 : 0.45, ease: 'easeInOut' }}
               style={{ transformBox: 'fill-box', transformOrigin: 'left' }}
             />
+            </g>
 
             {/* Screen sheen */}
             <path d="M -42 -63 L -18 -63 L -42 -34 Z" fill="#ffffff" opacity="0.05" />
@@ -185,6 +261,9 @@ export default function LaptopScene({ action, uid }) {
           <stop offset="0" stopColor="#0d2a33" />
           <stop offset="1" stopColor="#071a20" />
         </linearGradient>
+        <clipPath id={screenClip}>
+          <rect x="-46" y="-63" width="92" height="52" rx="4" />
+        </clipPath>
         <linearGradient id={key} x1="0" y1="0" x2="1" y2="0">
           <stop offset="0" stopColor="#7fe3d5" stopOpacity="0.25" />
           <stop offset="0.5" stopColor="#b8f5e9" stopOpacity="0.75" />

@@ -37,6 +37,38 @@ const validMessages = (value) =>
   Array.isArray(value) &&
   value.every((item) => item && typeof item.role === 'string' && typeof item.content === 'string')
 
+const EMPTY_MEMORY = Object.freeze({ name: '', facts: [] })
+const validMemory = (value) =>
+  value &&
+  typeof value === 'object' &&
+  typeof value.name === 'string' &&
+  Array.isArray(value.facts) &&
+  value.facts.every((fact) => typeof fact === 'string')
+
+/** Merge new facts without inventing or duplicating anything. */
+function mergeMemory(current, additions = []) {
+  let name = current?.name || ''
+  const facts = Array.isArray(current?.facts) ? [...current.facts] : []
+  for (const item of additions) {
+    const fact = String(item || '').replace(/\s+/g, ' ').trim().slice(0, 90)
+    if (!fact) continue
+    const named = /\b(?:their name is|name is|my name is|call me)\s+([A-Za-z][\w'-]{1,20})\b/i.exec(fact)
+    if (named && !name) name = named[1]
+    const lower = fact.toLowerCase()
+    if (facts.some((existing) => existing.toLowerCase() === lower || lower.includes(existing.toLowerCase()))) continue
+    facts.push(fact)
+  }
+  return { name, facts: facts.slice(-12) }
+}
+
+/** A name said out loud is always remembered, even if the model omits "remember". */
+function nameFromCaller(text) {
+  const match = /\b(?:my name is|call me|i'm|i am|ako si|pangalan ko si)\s+([A-Za-z][\w'-]{1,20})\b/i.exec(
+    String(text || ''),
+  )
+  return match ? `Their name is ${match[1]}` : null
+}
+
 /** Guarantee an await can never hang the FSM in THINKING, even if a provider
  * ignores its AbortSignal. Rejects on timeout so the turn always continues. */
 function withHardTimeout(promise, ms, label) {
@@ -109,8 +141,11 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
     (value) => SENTIMENT_KEYS.includes(value),
   )
   const [messages, setMessages] = useLocalStorageState('vex.v1.messages', [], validMessages)
+  const [memory, setMemory] = useLocalStorageState('vex.v1.memory', EMPTY_MEMORY, validMemory)
   const [lastReply, setLastReply] = useLocalStorageState('vex.v1.lastReply', INITIAL_REPLY)
   const [interimTranscript, setInterimTranscript] = useState('')
+  const [captionWords, setCaptionWords] = useState([])
+  const [activeWord, setActiveWord] = useState(-1)
   const [latency, setLatency] = useState(INITIAL_LATENCY)
   const [notice, setNotice] = useState(null)
   const [audioLevel, setAudioLevel] = useState(0)
@@ -134,6 +169,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
   const frustrationRef = useRef(frustration)
   const emotionRef = useRef(emotion)
   const messagesRef = useRef(messages)
+  const memoryRef = useRef(memory)
   const settingsRef = useRef({ voice, spiceMode, handsFree, delivery, languageMode, filipinoVoiceGender })
   settingsRef.current = { voice, spiceMode, handsFree, delivery, languageMode, filipinoVoiceGender }
   const lastTurnAtRef = useRef(Date.now())
@@ -525,9 +561,11 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
     preloadedBlob = null,
     onReady = null,
     preloadedProvider = 'Gemini TTS',
+    words = [],
   ) {
     const session = ++speechSessionRef.current
     const started = performance.now()
+    let wordFrame = 0
 
     const isCurrent = () =>
       session === speechSessionRef.current &&
@@ -543,6 +581,9 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
 
     const finish = () => {
       if (!isCurrent()) return
+      if (wordFrame) cancelAnimationFrame(wordFrame)
+      wordFrame = 0
+      setActiveWord(-1)
       meterRef.current?.stop()
       setAudioLevel(0)
       setSpectrum(EMPTY_SPECTRUM)
@@ -603,6 +644,29 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
       })
 
       if (!markReady()) return
+      // Follow Edge's word boundaries so the caption lights up with the voice.
+      if (words.length) {
+        let lastWord = -1
+        const tickWords = () => {
+          if (!mountedRef.current || session !== speechSessionRef.current || turn !== turnSeqRef.current) {
+            if (wordFrame) cancelAnimationFrame(wordFrame)
+            wordFrame = 0
+            return
+          }
+          const time = audio.currentTime || 0
+          let index = -1
+          for (let i = 0; i < words.length; i += 1) {
+            if (time >= words[i].offset - 0.03) index = i
+            else break
+          }
+          if (index !== lastWord) {
+            lastWord = index
+            setActiveWord(index)
+          }
+          wordFrame = requestAnimationFrame(tickWords)
+        }
+        wordFrame = requestAnimationFrame(tickWords)
+      }
       // Never let a stalled playback (autoplay policy, muted tab, headless)
       // block the rest of the turn — e.g. opening the requested search tab.
       const playLimit = Math.max(3000, Math.min(12000, text.length * 110))
@@ -623,6 +687,9 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
       }
       finish()
     } catch {
+      if (wordFrame) cancelAnimationFrame(wordFrame)
+      wordFrame = 0
+      setActiveWord(-1)
       meterRef.current?.stop()
       setAudioLevel(0)
       setSpectrum(EMPTY_SPECTRUM)
@@ -718,6 +785,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
         languageMode: settings.languageMode,
         filipinoVoiceGender: settings.filipinoVoiceGender,
         userText: text,
+        memory: memoryRef.current,
       })
       const chatDeadline = started + 7000
       const parse = (content) =>
@@ -797,6 +865,20 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
     lastTurnAtRef.current = Date.now()
     setSentiment(result.sentiment)
     const intensity = clamp(Math.round(Number(result.delivery) || 0), 0, 3)
+
+    // Commit only facts the caller actually stated this turn. The name regex is
+    // a safety net for models that forget the "remember" field.
+    const additions = [...(result.remember || [])]
+    const spokenName = nameFromCaller(text)
+    if (spokenName) additions.unshift(spokenName)
+    if (additions.length) {
+      const nextMemory = mergeMemory(memoryRef.current, additions)
+      if (nextMemory !== memoryRef.current) {
+        memoryRef.current = nextMemory
+        setMemory(nextMemory)
+      }
+    }
+
     // A long vowel run is the only line that needs special voice handling.
     const shout = hasLongShout(result.spoken)
 
@@ -826,14 +908,17 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
         ? {
             name: 'Edge TTS',
             timeoutMs: 9000,
-            run: (options) =>
-              generateEdgeSpeech(result.spoken, {
+            run: async (options) => {
+              const speech = await generateEdgeSpeech(result.spoken, {
                 languageMode: options.languageMode,
                 emotion: options.emotion,
                 intensity: options.intensity,
                 shout,
                 abortSignal: options.abortSignal,
-              }),
+              })
+              result.words = speech.words || []
+              return speech.blob
+            },
           }
         : null
 
@@ -910,6 +995,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
     }
 
     const sessionBeforeSpeak = speechSessionRef.current
+    setCaptionWords(result.words || [])
     await speakReply(
       result.spoken,
       nextEmotion,
@@ -917,6 +1003,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
       result.audio || null,
       null,
       result.ttsProvider,
+      result.words || [],
     )
 
     // Open the search only once Vex has finished his line. If the caller
@@ -1026,6 +1113,15 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
     setSearchLink(null)
   }
 
+  function forgetMemory() {
+    const empty = { name: '', facts: [] }
+    memoryRef.current = empty
+    setMemory(empty)
+    setCaptionWords([])
+    setActiveWord(-1)
+    pushNotice('Memory wiped. Vex starts fresh with you.', 'warning', 7000)
+  }
+
   const actionsRef = useRef({})
   actionsRef.current = {
     togglePrimary,
@@ -1034,6 +1130,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
     dismissNotice,
     dismissSearchLink,
     dismissWebAction,
+    forgetMemory,
     setLanguageMode,
     setFilipinoVoiceGender,
   }
@@ -1045,6 +1142,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
       dismissNotice: (...args) => actionsRef.current.dismissNotice(...args),
       dismissSearchLink: (...args) => actionsRef.current.dismissSearchLink(...args),
       dismissWebAction: (...args) => actionsRef.current.dismissWebAction(...args),
+      forgetMemory: (...args) => actionsRef.current.forgetMemory(...args),
       setLanguageMode: (...args) => actionsRef.current.setLanguageMode(...args),
       setFilipinoVoiceGender: (...args) => actionsRef.current.setFilipinoVoiceGender(...args),
     }),
@@ -1127,6 +1225,9 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
     webAction,
     audioLevel,
     spectrum,
+    captionWords,
+    activeWord,
+    memory,
     languageMode,
     filipinoVoiceGender,
     recognitionSupported,

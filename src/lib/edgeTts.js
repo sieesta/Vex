@@ -13,10 +13,10 @@ export async function generateEdgeSpeech(
   if (!USE_PROXY) throw new Error('Edge TTS is only available through the production proxy.')
   const clean = prepareForSpeech(text)
   if (!clean) throw new Error('Nothing to say.')
-  const { blob } = await proxyCall(
+  const { blob, words } = await proxyCall(
     'edge-tts',
     { text: clean, languageMode, emotion, intensity, shout: hasLongShout(text) },
     { abortSignal },
   )
-  return blob
+  return { blob, words }
 }

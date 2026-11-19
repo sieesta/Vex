@@ -217,7 +217,7 @@ async function edgeTts(res, payload) {
   const useMascotProsody = base.voice === EDGE_VOICE
   const prosody = useMascotProsody ? EDGE_PROSODY[emotion] || EDGE_PROSODY.chill : null
 
-  const bytes = await synthesizeEdgeSpeech({
+  const { audio: bytes, words } = await synthesizeEdgeSpeech({
     text: payload.text,
     voice: base.voice,
     lang: base.lang,
@@ -227,6 +227,9 @@ async function edgeTts(res, payload) {
     // sound like overacting. The breathing pause comes from the shaped text.
     volume: payload.shout ? '+6%' : '+0%',
   })
+  if (words?.length) {
+    res.setHeader('X-Vex-Words', Buffer.from(JSON.stringify(words)).toString('base64'))
+  }
   return audio(res, bytes, 'audio/mpeg')
 }
 

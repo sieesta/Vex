@@ -106,8 +106,32 @@ function ssml({ text, voice, lang, pitch, rate, volume }) {
   return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${escapeXml(lang)}"><voice name="${escapeXml(voice)}"><prosody pitch="${escapeXml(pitch)}" rate="${escapeXml(rate)}" volume="${escapeXml(volume)}">${spoken}</prosody></voice></speak>`
 }
 
+function parseWordTimings(message) {
+  try {
+    const split = message.indexOf(JSON_DELIM)
+    if (split === -1) return []
+    const parsed = JSON.parse(message.slice(split + JSON_DELIM.length))
+    const events = parsed?.Metadata || []
+    return events
+      .filter((event) => event?.Type === 'WordBoundary' && event?.Data)
+      .map((event) => {
+        const data = event.Data
+        const label = data.text?.Text ?? data.text ?? data.Text ?? ''
+        return {
+          text: String(label),
+          // Edge reports offsets/durations in 100-nanosecond ticks.
+          offset: Number(data.Offset || 0) / 10_000_000,
+          duration: Number(data.Duration || 0) / 10_000_000,
+        }
+      })
+      .filter((word) => word.text)
+  } catch {
+    return []
+  }
+}
+
 /**
- * Synthesize one line and resolve with the MP3 bytes.
+ * Synthesize one line and resolve with the MP3 bytes plus word timings.
  *
  * @param {object} options
  * @param {string} options.text
@@ -117,6 +141,8 @@ function ssml({ text, voice, lang, pitch, rate, volume }) {
  * @param {string} [options.rate]
  * @param {string} [options.volume]
  * @param {number} [options.timeoutMs]
+ * @returns {Promise<{audio: Buffer, words: Array<{text: string, offset: number, duration: number}>}>}
+ *   offsets/durations are seconds relative to the start of the audio.
  */
 export async function synthesizeEdgeSpeech({
   text,
@@ -145,7 +171,7 @@ export async function synthesizeEdgeSpeech({
       context: {
         synthesis: {
           audio: {
-            metadataoptions: { sentenceBoundaryEnabled: 'false', wordBoundaryEnabled: 'false' },
+            metadataoptions: { sentenceBoundaryEnabled: 'false', wordBoundaryEnabled: 'true' },
             outputFormat: OUTPUT_FORMAT,
           },
         },
@@ -162,6 +188,7 @@ export async function synthesizeEdgeSpeech({
 
   return new Promise((resolve, reject) => {
     const chunks = []
+    const words = []
     let settled = false
     let sawEnd = false
 
@@ -188,7 +215,7 @@ export async function synthesizeEdgeSpeech({
       if (!chunks.length) return fail(new Error('Edge TTS returned no audio.'))
       settled = true
       cleanup()
-      resolve(Buffer.concat(chunks))
+      resolve({ audio: Buffer.concat(chunks), words })
     }
 
     socket.on('open', () => {
@@ -205,7 +232,9 @@ export async function synthesizeEdgeSpeech({
       }
 
       const message = buffer.toString('utf8')
-      if (message.includes('Path:turn.end')) {
+      if (message.includes('Path:audio.metadata')) {
+        words.push(...parseWordTimings(message))
+      } else if (message.includes('Path:turn.end')) {
         sawEnd = true
         succeed()
       }

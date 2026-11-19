@@ -41,8 +41,9 @@ export function hasLongShout(text) {
  * keeps the emotion (punctuation + the provider's emotion-tuned voice settings)
  * while making every word pronounceable.
  */
-export function prepareForSpeech(input, { preserveEmphasis = false, preserveStretch = false } = {}) {
-  let text = stripVocalTags(input)
+export function prepareForSpeech(input, { preserveEmphasis = false, preserveStretch = false, preserveTags = false } = {}) {
+  // Meltdown lines carry ElevenLabs performance tags that must survive intact.
+  let text = preserveTags ? String(input || '').trim() : stripVocalTags(input)
 
   // Emojis, markdown and stray glyphs are never spoken.
   text = text.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '')

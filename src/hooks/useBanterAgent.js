@@ -16,10 +16,13 @@ const MAX_CONTEXT_MESSAGES = 12
 const SILENCE_MS = 1400
 // How long Vex waits before checking in on a quiet caller.
 const IDLE_NUDGE_MS = 60_000
-// A deliberate, earned meltdown — only after the caller repeats themselves
-// three times in a row. Stretches are preserved and voiced at full length.
-const MELTDOWN_LINE =
-  'AHHHHHHHHHHHHHHHHHH!!! ayawwwwwww koooo... nnaaaaa makiiipagggguuuusaaaappppp... saaaaa iyooooooooooo'
+// Earned meltdowns — only after the caller repeats themselves three times in
+// a row. Variants rotate so Vex never sounds like a broken record. Stretches
+// are preserved and voiced at full length.
+const MELTDOWN_LINES = [
+  "[screaming] AHHH!! [crying] Ayaw ko na... makipag-usap sa'yo... [frustrated sigh] Fuck.",
+  '[screaming] WALLAAAA KAAAA BAAANGGGG!!! [crying] Saaasaaabihinngggg matinoooo?... [frustrated sigh] Fuckkkkkkk.',
+]
 const INITIAL_REPLY = "You're on the air. Say something worth the static."
 const INITIAL_LATENCY = {
   llmMs: null,
@@ -234,6 +237,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
   const idleTimerRef = useRef(null)
   const lastActivityRef = useRef(Date.now())
   const lastNudgeRef = useRef(0)
+  const meltdownCursorRef = useRef(0)
   const idleNudgeRef = useRef(null)
   const mountedRef = useRef(true)
   const offlineReplyRef = useRef('')
@@ -760,7 +764,10 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
    * Turn a line into audio with the same provider order everywhere: ElevenLabs
    * first, Gemini as the safety net. Used by normal turns and idle check-ins.
    */
-  async function synthesizeLine(text, { emotion = 'chill', intensity = 0, preserveStretch = false, forceShout = false } = {}) {
+  async function synthesizeLine(
+    text,
+    { emotion = 'chill', intensity = 0, preserveStretch = false, forceShout = false, preserveTags = false } = {},
+  ) {
     const config = configRef.current
     const eleven =
       config.elevenlabs.length && config.elevenlabsVoiceId
@@ -777,6 +784,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
                 intensity: options.intensity,
                 preserveStretch: options.preserveStretch,
                 forceShout: options.forceShout,
+                preserveTags: options.preserveTags,
                 abortSignal: options.abortSignal,
               }),
           }
@@ -821,6 +829,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
             intensity,
             preserveStretch,
             forceShout,
+            preserveTags,
             abortSignal: controller.signal,
           }),
           Math.max(1500, Math.min(provider.timeoutMs + 2000, ttsDeadline - performance.now())),
@@ -990,13 +999,15 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
     if (meltdown) {
       // Three identical messages in a row earns the one long, uncut meltdown.
       // No model call — the line and its timing are deliberate, never random.
+      const meltdownLine = MELTDOWN_LINES[meltdownCursorRef.current % MELTDOWN_LINES.length]
+      meltdownCursorRef.current += 1
       result = {
         emotion: 'unhinged',
         frustrationDelta: 0,
         nextFrustration: 92,
         sentiment: 'rude',
         delivery: 3,
-        spoken: MELTDOWN_LINE,
+        spoken: meltdownLine,
         action: null,
         remember: [],
       }
@@ -1141,7 +1152,8 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
       emotion: nextEmotion,
       intensity,
       preserveStretch: meltdown,
-      forceShout: meltdown,
+      forceShout: false,
+      preserveTags: meltdown,
     })
     result.audio = speech.audio
     result.ttsProvider = speech.provider

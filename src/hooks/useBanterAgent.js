@@ -26,10 +26,8 @@ const MELTDOWN_LINES = [
 
 // Gemini has no audio tags. Its SDK sends performance direction as part
 // metadata instead, so the same emotion lands on both engines.
-const MELTDOWN_STYLE =
-  'Distraught and angry Filipino accent. Start with a loud scream of frustration, then drop into a shaky, breathless, exhausted tone with heavy pauses.'
-const NAME_WELCOME_STYLE =
-  'Playful teasing Filipino friend. Say the insult jokingly, burst into a big genuine laugh at HAHAHAHAHAAH, then switch warm and friendly for the greeting.'
+const MELTDOWN_STYLE = 'angry, screaming, crying, breathless, exhausted'
+const NAME_WELCOME_STYLE = 'laughing, playful, warm'
 const INITIAL_REPLY = '[shouting] HOYYY! GISING!... magsalita ka naman [sighs].'
 const INITIAL_LATENCY = {
   llmMs: null,
@@ -1131,7 +1129,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
 
     if (nameGreeting && memoryRef.current.name) {
       const who = memoryRef.current.name
-      result.spoken = `Okay... FUCK YOU ${who}... [laughs] HAHAHAHAHAAH [warmly] joke lang Hi ${who}`
+      result.spoken = `Okay... FUCK YOU ${who}... [laughs] HAHAHAHAHAAH!!! [warmly] joke lang Hi ${who}`
     }
 
     // Commit only facts the caller actually stated this turn. The name regex is

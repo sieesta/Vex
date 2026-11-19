@@ -88,16 +88,6 @@ export default function App() {
             <button type="button" onClick={agent.resetSession} className={buttonClass}>
               reset
             </button>
-            {(agent.memory.name || agent.memory.facts.length > 0) && (
-              <button
-                type="button"
-                onClick={agent.forgetMemory}
-                className={buttonClass}
-                title="Forget everything Vex learned about you"
-              >
-                forget me
-              </button>
-            )}
           </div>
         </header>
 

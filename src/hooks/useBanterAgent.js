@@ -975,7 +975,8 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
 
     const meltdown = isThirdRepeat(text, messagesRef.current)
     const newNameFact = nameFromCaller(text)
-    const nameGreeting = Boolean(newNameFact && !memoryRef.current.name)
+    const declaredName = newNameFact ? newNameFact.replace(/^Their name is\s+/i, '') : ''
+    const nameGreeting = Boolean(declaredName && declaredName !== memoryRef.current.name)
     noteActivity()
     primeAudio()
     stopPlayback()
@@ -1127,11 +1128,6 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
     setSentiment(result.sentiment)
     const intensity = clamp(Math.round(Number(result.delivery) || 0), 0, 3)
 
-    if (nameGreeting && memoryRef.current.name) {
-      const who = memoryRef.current.name
-      result.spoken = `Okay... FUCK YOU ${who}... [laughs] HAHAHAHAHAAH!!! [warmly] joke lang Hi ${who}`
-    }
-
     // Commit only facts the caller actually stated this turn. The name regex is
     // a safety net for models that forget the "remember" field.
     const additions = [...(result.remember || [])]
@@ -1143,6 +1139,13 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
         memoryRef.current = nextMemory
         setMemory(nextMemory)
       }
+    }
+
+    // Now that the name is committed, swap in the fixed welcome line so both
+    // TTS engines speak the constant instead of the model's own greeting.
+    if (nameGreeting && memoryRef.current.name) {
+      const who = memoryRef.current.name
+      result.spoken = `Okay... FUCK YOU ${who}... [laughs] HAHAHAHAHAAH!!! [warmly] joke lang Hi ${who}`
     }
 
     // If Gemini/Groq were rate-limited they emit no action — still honour a

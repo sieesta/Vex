@@ -69,6 +69,8 @@ export default function AgentBrainHUD({
   languageMode = 'taglish',
   studioOnline = false,
   accent = '#ff6b35',
+  ttsProvider = 'elevenlabs',
+  onTtsProviderChange = () => {},
 }) {
   const sentimentInfo = SENTIMENT_META[sentiment] || SENTIMENT_META.neutral
   const SentimentIcon = SENTIMENT_ICONS[sentimentInfo.icon] || Minus
@@ -190,6 +192,31 @@ export default function AgentBrainHUD({
                 </span>
                 <MiniChip color={llm.color}>{llm.label}</MiniChip>
               </Chips>
+              <div className="mt-2.5 flex items-center gap-1.5">
+                <span className="label-mono mr-1">voice</span>
+                {[
+                  { id: 'elevenlabs', label: 'ElevenLabs', color: '#c8e06a' },
+                  { id: 'gemini', label: 'Gemini', color: '#8ab4ff' },
+                ].map((option) => {
+                  const active = ttsProvider === option.id
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => onTtsProviderChange(option.id)}
+                      aria-pressed={active}
+                      className="rounded-[2px] border px-1.5 py-1 font-mono text-[8px] uppercase tracking-[0.1em] transition-colors"
+                      style={{
+                        borderColor: active ? `${option.color}80` : '#ffffff1a',
+                        backgroundColor: active ? `${option.color}18` : 'transparent',
+                        color: active ? option.color : '#a8967d',
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             <div className="bg-[#120d0a] p-4">

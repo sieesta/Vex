@@ -4,6 +4,7 @@ import { NoticeBanner, SearchLinkCard } from './components/Banners'
 import ControlsPanel from './components/ControlsPanel'
 import VexMascot from './components/VexMascot'
 import { useBanterAgent } from './hooks/useBanterAgent'
+import { useLocalStorageState } from './hooks/useLocalStorage'
 import { emotionMeta } from './lib/emotions'
 import { stripVocalTags } from './lib/speech'
 
@@ -37,11 +38,17 @@ export default function App() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [onboardSkipped, setOnboardSkipped] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
+  const [ttsProvider, setTtsProvider] = useLocalStorageState(
+    'vex.v1.ttsProvider',
+    'elevenlabs',
+    (value) => value === 'elevenlabs' || value === 'gemini',
+  )
 
   const agent = useBanterAgent({
     voice: FIXED_VOICE,
     spiceMode: FIXED_SPICE_MODE,
     handsFree: FIXED_HANDS_FREE,
+    ttsProvider,
   })
   const meta = emotionMeta(agent.emotion)
 
@@ -108,6 +115,8 @@ export default function App() {
           languageMode={agent.languageMode}
           studioOnline={agent.studioOnline}
           accent={meta.accent}
+          ttsProvider={ttsProvider}
+          onTtsProviderChange={setTtsProvider}
         />
 
         {historyOpen && (

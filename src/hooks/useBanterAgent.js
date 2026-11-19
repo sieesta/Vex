@@ -126,7 +126,7 @@ function makeId() {
  * The full affective conversation engine: finite state machine, cumulative
  * frustration model, Gemini LLM, prioritized voice providers, browser fallbacks and barge-in.
  */
-export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
+export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsProvider = 'elevenlabs' }) {
   const [keyPool, setKeyPool] = useState([])
   const [voiceConfig, setVoiceConfig] = useState(EMPTY_VOICE_CONFIG)
   const [agentState, setAgentState] = useState('IDLE')
@@ -176,8 +176,24 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
   const emotionRef = useRef(emotion)
   const messagesRef = useRef(messages)
   const memoryRef = useRef(memory)
-  const settingsRef = useRef({ voice, spiceMode, handsFree, delivery, languageMode, filipinoVoiceGender })
-  settingsRef.current = { voice, spiceMode, handsFree, delivery, languageMode, filipinoVoiceGender }
+  const settingsRef = useRef({
+    voice,
+    spiceMode,
+    handsFree,
+    delivery,
+    ttsProvider,
+    languageMode,
+    filipinoVoiceGender,
+  })
+  settingsRef.current = {
+    voice,
+    spiceMode,
+    handsFree,
+    delivery,
+    ttsProvider,
+    languageMode,
+    filipinoVoiceGender,
+  }
   const lastTurnAtRef = useRef(Date.now())
 
   const poolRef = useRef(keyPool)
@@ -765,7 +781,11 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
           }
         : null
 
-    const providers = [eleven, gemini].filter(Boolean)
+    // The caller's Brain-panel choice decides who speaks first; the other
+    // engine stays as the safety net if the preferred one is unavailable.
+    const preferred = settingsRef.current.ttsProvider
+    const providers =
+      preferred === 'gemini' ? [gemini, eleven].filter(Boolean) : [eleven, gemini].filter(Boolean)
     if (!providers.length) return { audio: null, provider: undefined }
 
     const ttsStarted = performance.now()

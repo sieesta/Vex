@@ -1318,6 +1318,12 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
     setSentiment('neutral')
     messagesRef.current = []
     setMessages([])
+    const emptyMemory = { name: '', facts: [] }
+    memoryRef.current = emptyMemory
+    setMemory(emptyMemory)
+    meltdownCursorRef.current = 0
+    lastNudgeRef.current = 0
+    noteActivity()
     setLastReply(INITIAL_REPLY)
     setInterimTranscript('')
     setLatency(INITIAL_LATENCY)

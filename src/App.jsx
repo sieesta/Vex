@@ -210,28 +210,9 @@ export default function App() {
             <p className="min-h-12 max-w-md px-2 text-center text-sm leading-relaxed text-zinc-300">
               {agent.interimTranscript}
             </p>
-          ) : agent.captionWords.length ? (
-            <p
-              className="min-h-12 max-w-md px-2 text-center text-sm leading-relaxed text-zinc-300"
-              aria-live="polite"
-            >
-              {agent.captionWords.map((word, index) => (
-                <span
-                  key={`${word.offset}-${index}`}
-                  className="rounded-[3px] px-0.5 transition-colors duration-150"
-                  style={
-                    index === agent.activeWord
-                      ? { color: '#0b1a1f', backgroundColor: meta.accent, boxShadow: `0 0 12px -2px ${meta.accent}` }
-                      : undefined
-                  }
-                >
-                  {word.text}{' '}
-                </span>
-              ))}
-            </p>
           ) : (
             <p className="min-h-12 max-w-md px-2 text-center text-sm leading-relaxed text-zinc-300">
-              {agent.lastReply ? stripVocalTags(agent.lastReply) : ''}
+              {agent.spokenText}
             </p>
           )}
 

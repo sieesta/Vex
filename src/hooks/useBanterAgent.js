@@ -175,6 +175,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
   const [interimTranscript, setInterimTranscript] = useState('')
   const [captionWords, setCaptionWords] = useState([])
   const [activeWord, setActiveWord] = useState(-1)
+  const [spokenText, setSpokenText] = useState('')
   const [latency, setLatency] = useState(INITIAL_LATENCY)
   const [notice, setNotice] = useState(null)
   const [audioLevel, setAudioLevel] = useState(0)
@@ -452,6 +453,8 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
     meterRef.current?.stop()
     setAudioLevel(0)
     setSpectrum(EMPTY_SPECTRUM)
+    setActiveWord(-1)
+    setSpokenText('')
 
     if (audioUrlRef.current) {
       try {
@@ -623,6 +626,8 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
     const session = ++speechSessionRef.current
     const started = performance.now()
     let wordFrame = 0
+    let revealFrame = 0
+    const displayWords = stripVocalTags(text).split(/\s+/).filter(Boolean)
 
     const isCurrent = () =>
       session === speechSessionRef.current &&
@@ -639,8 +644,11 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
     const finish = () => {
       if (!isCurrent()) return
       if (wordFrame) cancelAnimationFrame(wordFrame)
+      if (revealFrame) cancelAnimationFrame(revealFrame)
       wordFrame = 0
+      revealFrame = 0
       setActiveWord(-1)
+      setSpokenText('')
       meterRef.current?.stop()
       setAudioLevel(0)
       setSpectrum(EMPTY_SPECTRUM)
@@ -701,6 +709,30 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
       })
 
       if (!markReady()) return
+      // Reveal the caption only while the audio is actually playing, one word
+      // at a time, instead of dumping the whole line before Vex starts talking.
+      setSpokenText('')
+      if (displayWords.length) {
+        const estimate = Math.max(2, displayWords.length * 0.3)
+        let lastCount = -1
+        const tickReveal = () => {
+          if (!mountedRef.current || session !== speechSessionRef.current || turn !== turnSeqRef.current) {
+            if (revealFrame) cancelAnimationFrame(revealFrame)
+            revealFrame = 0
+            return
+          }
+          const elapsed = (performance.now() - started) / 1000
+          const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : estimate
+          const ratio = Math.min(1, Math.max(0, (audio.currentTime || elapsed) / duration))
+          const count = Math.floor(ratio * displayWords.length)
+          if (count !== lastCount) {
+            lastCount = count
+            setSpokenText(displayWords.slice(0, count).join(' '))
+          }
+          revealFrame = requestAnimationFrame(tickReveal)
+        }
+        revealFrame = requestAnimationFrame(tickReveal)
+      }
       // Follow Edge's word boundaries so the caption lights up with the voice.
       if (words.length) {
         let lastWord = -1
@@ -745,8 +777,11 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
       finish()
     } catch {
       if (wordFrame) cancelAnimationFrame(wordFrame)
+      if (revealFrame) cancelAnimationFrame(revealFrame)
       wordFrame = 0
+      revealFrame = 0
       setActiveWord(-1)
+      setSpokenText('')
       meterRef.current?.stop()
       setAudioLevel(0)
       setSpectrum(EMPTY_SPECTRUM)
@@ -1424,6 +1459,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
     spectrum,
     captionWords,
     activeWord,
+    spokenText,
     memory,
     languageMode,
     filipinoVoiceGender,

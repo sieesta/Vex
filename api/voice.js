@@ -311,10 +311,13 @@ async function tts(res, provider, payload) {
   }
 
   if (provider === 'gemini-tts') {
+    const style = String(payload.style || '').trim()
+    const inputPart = { text: String(payload.contents || '') }
+    if (style) inputPart.speechMetadata = { style }
     const data = await geminiRequest(
       payload.model || env('GEMINI_TTS_MODEL', 'gemini-3.8-flash-tts'),
       {
-        contents: [{ role: 'user', parts: [{ text: String(payload.contents || '') }] }],
+        contents: [{ role: 'user', parts: [inputPart] }],
         generationConfig: {
           responseModalities: ['AUDIO'],
           speechConfig: {

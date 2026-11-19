@@ -20,10 +20,17 @@ const IDLE_NUDGE_MS = 60_000
 // a row. Variants rotate so Vex never sounds like a broken record. Stretches
 // are preserved and voiced at full length.
 const MELTDOWN_LINES = [
-  "[screaming] AHHH!! [crying] Ayaw ko na... makipag-usap sa'yo... [frustrated sigh] FUCK.",
-  '[screaming] WALLAAAA KAAAA BAAANGGGG!!! [crying] Saaasaaabihinngggg matinoooo?... [frustrated sigh] FUCKKKKKKK.',
+  '[shouting] AHHH!! [crying] Ayaw ko na... makipag-usap sa\'yo... [sighs] FUCK.',
+  '[shouting] WALLA KAA BANG!!! [crying] Sasabihigg matinoooo?... [sighs] Fuckkkkkkk.',
 ]
-const INITIAL_REPLY = '[screaming] HOYYY! GISING!... magsalita ka naman [frustrated sigh].'
+
+// Gemini has no audio tags. Its SDK sends performance direction as part
+// metadata instead, so the same emotion lands on both engines.
+const MELTDOWN_STYLE =
+  'Distraught and angry Filipino accent. Start with a loud scream of frustration, then drop into a shaky, breathless, exhausted tone with heavy pauses.'
+const NAME_WELCOME_STYLE =
+  'Playful teasing Filipino friend. Say the insult jokingly, laugh big, then switch warm and friendly.'
+const INITIAL_REPLY = '[shouting] YYY! GISING!... magsalita ka naman [sighs].'
 const INITIAL_LATENCY = {
   llmMs: null,
   ttsMs: null,
@@ -766,7 +773,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
    */
   async function synthesizeLine(
     text,
-    { emotion = 'chill', intensity = 0, preserveStretch = false, forceShout = false, preserveTags = false } = {},
+    { emotion = 'chill', intensity = 0, preserveStretch = false, preserveEmphasis = false, forceShout = false, preserveTags = false, style = '' } = {},
   ) {
     const config = configRef.current
     const eleven =
@@ -803,6 +810,8 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
                 languageMode: settingsRef.current.languageMode,
                 intensity: options.intensity,
                 preserveStretch: options.preserveStretch,
+                preserveEmphasis: options.preserveEmphasis,
+                style: options.style,
                 abortSignal: options.abortSignal,
               }),
           }
@@ -828,8 +837,10 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
             emotion,
             intensity,
             preserveStretch,
+            preserveEmphasis,
             forceShout,
             preserveTags,
+            style,
             abortSignal: controller.signal,
           }),
           Math.max(1500, Math.min(provider.timeoutMs + 2000, ttsDeadline - performance.now())),
@@ -965,6 +976,8 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
     if (!text) return
 
     const meltdown = isThirdRepeat(text, messagesRef.current)
+    const newNameFact = nameFromCaller(text)
+    const nameGreeting = Boolean(newNameFact && !memoryRef.current.name)
     noteActivity()
     primeAudio()
     stopPlayback()
@@ -1116,6 +1129,11 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
     setSentiment(result.sentiment)
     const intensity = clamp(Math.round(Number(result.delivery) || 0), 0, 3)
 
+    if (nameGreeting && memoryRef.current.name) {
+      const who = memoryRef.current.name
+      result.spoken = `Okay... FUCK YOU ${who}... HAHAHAHAHAAH joke lang Hi ${who}`
+    }
+
     // Commit only facts the caller actually stated this turn. The name regex is
     // a safety net for models that forget the "remember" field.
     const additions = [...(result.remember || [])]
@@ -1151,9 +1169,11 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0, ttsP
     const speech = await synthesizeLine(result.spoken, {
       emotion: nextEmotion,
       intensity,
-      preserveStretch: meltdown,
+      preserveStretch: meltdown || nameGreeting,
+      preserveEmphasis: nameGreeting,
       forceShout: false,
       preserveTags: meltdown,
+      style: meltdown ? MELTDOWN_STYLE : nameGreeting ? NAME_WELCOME_STYLE : '',
     })
     result.audio = speech.audio
     result.ttsProvider = speech.provider

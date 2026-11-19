@@ -106,27 +106,33 @@ export async function generateGeminiChat({
 
 export async function generateGeminiSpeech(
   text,
-  { keys = [], model = TTS_MODEL, voice = TTS_VOICE, abortSignal, preserveStretch = false } = {},
+  { keys = [], model = TTS_MODEL, voice = TTS_VOICE, abortSignal, preserveStretch = false, preserveEmphasis = false, style = '' } = {},
 ) {
   if (!keys.length && !USE_PROXY) throw new Error('Gemini speech is not available.')
 
   const { GoogleGenAI, Modality } = USE_PROXY ? {} : await loadSdk()
   // Same shaping as the other engines: tags, emojis and stretched vowels are
   // cleaned up, and a long shout becomes "AHH, AHH!!" with a real breath pause.
-  const spokenText = prepareForSpeech(text, { preserveStretch })
+  const spokenText = prepareForSpeech(text, { preserveStretch, preserveEmphasis })
   if (!spokenText) throw new Error('Nothing to say.')
 
-  // Gemini TTS reads exactly what it is given. Long style prompts leak into the
-  // waveform (a 5-word line came back as 40s of spoken direction), so send only
-  // the line and let Leda's youthful timbre carry the character. The reply is
-  // already written in the selected language, so no language cue is needed.
+  // Gemini reads only the line. Performance direction goes in the part's
+  // speechMetadata.style — earlier we put it in the text and Gemini spoke the
+  // instructions aloud, which is exactly what we don't want.
   const spokenPrompt = spokenText
 
   if (USE_PROXY) {
-    const contents = spokenPrompt
-    const { blob } = await proxyCall('gemini-tts', { model, voice, contents }, { abortSignal })
+    const { blob } = await proxyCall(
+      'gemini-tts',
+      { model, voice, contents: spokenPrompt, style },
+      { abortSignal },
+    )
     return blob
   }
+
+  const contents = style
+    ? [{ role: 'user', parts: [{ text: spokenPrompt, speechMetadata: { style } }] }]
+    : spokenPrompt
 
   let lastError
   for (const key of keys) {
@@ -137,7 +143,7 @@ export async function generateGeminiSpeech(
       })
       const response = await ai.models.generateContent({
         model,
-        contents: spokenPrompt,
+        contents,
         config: {
           abortSignal,
           responseModalities: [Modality.AUDIO],

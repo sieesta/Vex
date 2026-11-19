@@ -66,7 +66,11 @@ function nameFromCaller(text) {
   const match = /\b(?:my name is|call me|i'm|i am|ako si|pangalan ko si)\s+([A-Za-z][\w'-]{1,20})\b/i.exec(
     String(text || ''),
   )
-  return match ? `Their name is ${match[1]}` : null
+  if (!match) return null
+  const candidate = match[1]
+  const notAName = /^(not|gonna|kinda|sorta|just|really|trying|sorry|okay|fine|here|there|the|a)$/i
+  if (notAName.test(candidate)) return null
+  return `Their name is ${candidate}`
 }
 
 /** Guarantee an await can never hang the FSM in THINKING, even if a provider

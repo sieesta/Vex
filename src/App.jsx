@@ -5,6 +5,7 @@ import ControlsPanel from './components/ControlsPanel'
 import VexMascot from './components/VexMascot'
 import { useBanterAgent } from './hooks/useBanterAgent'
 import { emotionMeta } from './lib/emotions'
+import { stripVocalTags } from './lib/speech'
 
 const FIXED_VOICE = 'fil-PH-AngeloNeural'
 const FIXED_SPICE_MODE = 'barkada'
@@ -33,6 +34,9 @@ function BrandMark({ accent }) {
 
 export default function App() {
   const [brainOpen, setBrainOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [onboardSkipped, setOnboardSkipped] = useState(false)
+  const [nameDraft, setNameDraft] = useState('')
 
   const agent = useBanterAgent({
     voice: FIXED_VOICE,
@@ -66,6 +70,14 @@ export default function App() {
             >
               brain
             </button>
+            <button
+              type="button"
+              onClick={() => setHistoryOpen((open) => !open)}
+              aria-expanded={historyOpen}
+              className={buttonClass}
+            >
+              history
+            </button>
             <button type="button" onClick={agent.resetSession} className={buttonClass}>
               reset
             </button>
@@ -98,6 +110,44 @@ export default function App() {
           accent={meta.accent}
         />
 
+        {historyOpen && (
+          <section
+            aria-label="Call transcript"
+            className="mb-3 max-h-64 overflow-y-auto rounded-[10px] border border-white/10 bg-[#120d0a]/95 p-3 shadow-xl"
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <span className="label-mono">transcript · {agent.messages.length}</span>
+              <button
+                type="button"
+                onClick={() => setHistoryOpen(false)}
+                className="font-mono text-[9px] uppercase tracking-[0.14em] text-zinc-500 hover:text-zinc-200"
+              >
+                close
+              </button>
+            </div>
+            {agent.messages.length === 0 ? (
+              <p className="py-4 text-center font-mono text-[10px] text-zinc-600">No lines yet. Say something.</p>
+            ) : (
+              <ol className="flex flex-col gap-2">
+                {[...agent.messages].reverse().map((message) => (
+                  <li key={message.id} className="border-t border-white/5 pt-2 first:border-0 first:pt-0">
+                    <div className="mb-0.5 flex items-center gap-2 font-mono text-[8px] uppercase tracking-[0.12em] text-zinc-600">
+                      <span className={message.role === 'user' ? 'text-cyan-300/70' : 'text-amber-200/70'}>
+                        {message.role === 'user' ? 'you' : 'vex'}
+                      </span>
+                      {message.idle && <span>spoke up</span>}
+                      {message.at ? new Date(message.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                    </div>
+                    <p className="text-[11px] leading-snug text-zinc-300">
+                      {message.display || stripVocalTags(message.content)}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+        )}
+
         <main className="flex flex-1 flex-col items-center justify-center gap-5 py-6">
           <p
             className="font-mono text-[9px] uppercase tracking-[0.32em]"
@@ -106,10 +156,52 @@ export default function App() {
             {meta.label}
           </p>
 
+          {agent.messages.length === 0 && !onboardSkipped && (
+            <form
+              onSubmit={(event) => {
+                event.preventDefault()
+                const name = nameDraft.trim()
+                if (!name) return
+                agent.sendMessage(`My name is ${name}`)
+                setNameDraft('')
+                setOnboardSkipped(true)
+              }}
+              className="w-full max-w-sm rounded-[10px] border border-white/10 bg-white/[0.03] px-4 py-3 text-center"
+            >
+              <p className="mb-2.5 text-[11px] leading-snug text-zinc-400">
+                Tell Vex your name — he'll remember it next time.
+              </p>
+              <div className="flex items-stretch gap-2">
+                <input
+                  aria-label="Your name"
+                  value={nameDraft}
+                  onChange={(event) => setNameDraft(event.target.value)}
+                  placeholder="Your name"
+                  maxLength={24}
+                  className="min-w-0 flex-1 rounded-[4px] border border-white/10 bg-black/30 px-2.5 py-1.5 text-[11px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-cyan-300/40"
+                />
+                <button
+                  type="submit"
+                  className="rounded-[4px] bg-cream px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.1em] text-night"
+                >
+                  teach him
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOnboardSkipped(true)}
+                className="mt-2 font-mono text-[8px] uppercase tracking-[0.14em] text-zinc-600 hover:text-zinc-400"
+              >
+                skip
+              </button>
+            </form>
+          )}
+
           <VexMascot
             state={agent.agentState}
             emotion={agent.emotion}
             audioLevel={agent.audioLevel}
+            spectrum={agent.spectrum}
             accent={meta.accent}
             webAction={agent.webAction}
             onPress={agent.togglePrimary}

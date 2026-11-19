@@ -1,4 +1,5 @@
-import { motion } from 'framer-motion'
+import { useEffect } from 'react'
+import { motion, useSpring } from 'framer-motion'
 import Mascot from './mascot/Mascot'
 
 const EMOTION_TO_MASCOT = {
@@ -22,10 +23,22 @@ function ariaLabelFor(state) {
   return 'Talk to Vex'
 }
 
-export default function VexMascot({ state, emotion, audioLevel, accent, webAction, onPress }) {
+export default function VexMascot({ state, emotion, audioLevel, spectrum, accent, webAction, onPress }) {
   const level = state === 'SPEAKING' ? audioLevel : 0
   const shownEmotion = mascotEmotion(state, emotion)
   const label = ariaLabelFor(state)
+
+  // The spectrum is already measured for the mouth. Reuse it so the whole
+  // creature breathes with his own voice, not just the lips.
+  const energy = spectrum?.length
+    ? spectrum.reduce((sum, bin) => sum + bin, 0) / spectrum.length
+    : 0
+  const haloScale = useSpring(1, { stiffness: 140, damping: 18 })
+  const haloOpacity = useSpring(0.24, { stiffness: 140, damping: 18 })
+  useEffect(() => {
+    haloScale.set(1 + energy * 0.17)
+    haloOpacity.set(0.22 + energy * 0.55)
+  }, [energy, haloScale, haloOpacity])
 
   return (
     <div className="flex w-full flex-col items-center gap-5">
@@ -38,6 +51,18 @@ export default function VexMascot({ state, emotion, audioLevel, accent, webActio
             opacity: state === 'SPEAKING' ? 0.5 + Math.min(1, level) * 0.5 : 0.35,
           }}
         />
+
+        {/* Audio-reactive halo: scales and brightens with the voice spectrum. */}
+        <motion.span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-[3%] rounded-full"
+          style={{
+            scale: haloScale,
+            opacity: haloOpacity,
+            background: `radial-gradient(closest-side, ${accent}66, transparent 72%)`,
+          }}
+        />
+
         {state === 'LISTENING' && (
           <motion.span
             aria-hidden="true"

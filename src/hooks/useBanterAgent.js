@@ -14,6 +14,8 @@ import { buildSearchUrl, localSearchAction, preopenTab, runWebAction } from '../
 const MAX_MESSAGES = 40
 const MAX_CONTEXT_MESSAGES = 12
 const SILENCE_MS = 1400
+// How long Vex waits before checking in on a quiet caller.
+const IDLE_NUDGE_MS = 60_000
 const INITIAL_REPLY = "You're on the air. Say something worth the static."
 const INITIAL_LATENCY = {
   llmMs: null,
@@ -155,6 +157,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
   const [spectrum, setSpectrum] = useState(EMPTY_SPECTRUM)
   const [searchLink, setSearchLink] = useState(null)
   const [webAction, setWebAction] = useState(null)
+  const [lastActivityAt, setLastActivityAt] = useState(Date.now())
   const languageMode = 'taglish'
   const filipinoVoiceGender = 'male'
   const setLanguageMode = () => {}
@@ -196,6 +199,10 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
   const webActionTimerRef = useRef(null)
   const silenceTimerRef = useRef(null)
   const autoListenTimerRef = useRef(null)
+  const idleTimerRef = useRef(null)
+  const lastActivityRef = useRef(Date.now())
+  const lastNudgeRef = useRef(0)
+  const idleNudgeRef = useRef(null)
   const mountedRef = useRef(true)
   const offlineReplyRef = useRef('')
 
@@ -207,6 +214,12 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
 
   function pushNotice(message, tone = 'warning', ttl = 9000) {
     setNotice({ id: makeId(), message, tone, ttl })
+  }
+
+  function noteActivity() {
+    const now = Date.now()
+    lastActivityRef.current = now
+    setLastActivityAt(now)
   }
 
   // The mascot's laptop scene is short-lived: it borrows the same action that
@@ -711,6 +724,164 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
     }
   }
 
+  /**
+   * Turn a line into audio with the same provider order everywhere: ElevenLabs
+   * first, Gemini as the safety net. Used by normal turns and idle check-ins.
+   */
+  async function synthesizeLine(text, { emotion = 'chill', intensity = 0 } = {}) {
+    const config = configRef.current
+    const eleven =
+      config.elevenlabs.length && config.elevenlabsVoiceId
+        ? {
+            name: 'ElevenLabs',
+            timeoutMs: 9000,
+            run: (options) =>
+              generateElevenLabsSpeech(text, {
+                keys: config.elevenlabs,
+                voiceId: config.elevenlabsVoiceId,
+                voiceIds: config.elevenlabsVoiceIds,
+                model: config.elevenlabsModel,
+                emotion: options.emotion,
+                intensity: options.intensity,
+                abortSignal: options.abortSignal,
+              }),
+          }
+        : null
+
+    const gemini =
+      config.gemini.length > 0
+        ? {
+            name: 'Gemini TTS',
+            timeoutMs: 12000,
+            run: (options) =>
+              generateGeminiSpeech(text, {
+                keys: config.gemini,
+                model: config.geminiTtsModel,
+                voice: config.geminiTtsVoice,
+                languageMode: settingsRef.current.languageMode,
+                intensity: options.intensity,
+                abortSignal: options.abortSignal,
+              }),
+          }
+        : null
+
+    const providers = [eleven, gemini].filter(Boolean)
+    if (!providers.length) return { audio: null, provider: undefined }
+
+    const ttsStarted = performance.now()
+    const ttsDeadline = ttsStarted + 11000
+    for (const provider of providers) {
+      const remaining = ttsDeadline - performance.now()
+      if (remaining < 1500) break
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), provider.timeoutMs)
+      try {
+        const audio = await withHardTimeout(
+          provider.run({ emotion, intensity, abortSignal: controller.signal }),
+          Math.max(1500, Math.min(provider.timeoutMs + 2000, ttsDeadline - performance.now())),
+          provider.name,
+        )
+        setLatency((previous) => ({ ...previous, ttsMs: Math.round(performance.now() - ttsStarted) }))
+        return { audio, provider: provider.name }
+      } catch {
+        // Silent failover — the next voice line gets the turn.
+      } finally {
+        clearTimeout(timeout)
+      }
+    }
+    setLatency((previous) => ({ ...previous, ttsMs: Math.round(performance.now() - ttsStarted) }))
+    return { audio: null, provider: undefined }
+  }
+
+  const IDLE_LINES = [
+    "Still there? Don't leave me hangin', ha.",
+    'Hello? Earth to you…',
+    'Okay, I\'m just here. No pressure.',
+    'Seryoso ka na ba, o natulog ka na?',
+    'Ayos lang. Hintay lang kita.',
+  ]
+
+  async function idleNudge() {
+    if (!mountedRef.current || agentStateRef.current !== 'IDLE') return
+    if (Date.now() - lastActivityRef.current < IDLE_NUDGE_MS) return
+    if (Date.now() - lastNudgeRef.current < IDLE_NUDGE_MS * 2) return
+    if (!messagesRef.current.length) return
+
+    const turn = turnSeqRef.current
+    const name = memoryRef.current.name
+    const system =
+      'You are VEX, a real friend on a voice call. The caller has gone quiet. ' +
+      'Write ONE short Taglish line checking in — warm, lightly teasing, at most 90 characters. ' +
+      'No greetings, no questions about help, no emojis. ' +
+      (name ? `Their name is ${name}. Use it naturally.\n` : '') +
+      'Reply ONLY with JSON: {"spoken":"your line here"}'
+
+    const pickLine = (content) => {
+      const match = /"spoken"\s*:\s*"([^"\\]{3,120})"/.exec(String(content || ''))
+      return match ? match[1] : null
+    }
+
+    let spoken = null
+    const config = configRef.current
+    const entries = poolRef.current.filter((entry) => usableEntry(entry))
+    for (const entry of entries.slice(0, 2)) {
+      try {
+        const content = await withHardTimeout(
+          generateGroqChat({
+            key: entry.key,
+            systemInstruction: system,
+            history: [],
+            deadline: performance.now() + 2500,
+          }),
+          3000,
+          'Idle check-in',
+        )
+        spoken = pickLine(content)
+        if (spoken) break
+      } catch {
+        /* try the next line */
+      }
+    }
+    if (!spoken && config.gemini.length) {
+      try {
+        const content = await withHardTimeout(
+          generateGeminiChat({
+            keys: config.gemini,
+            model: config.geminiChatModel,
+            systemInstruction: system,
+            history: [],
+          }),
+          3000,
+          'Idle check-in',
+        )
+        spoken = pickLine(content)
+      } catch {
+        /* local fallback below */
+      }
+    }
+    if (!spoken) spoken = IDLE_LINES[Math.floor(Math.random() * IDLE_LINES.length)]
+
+    // If the caller came back while we were writing, drop the nudge.
+    if (turn !== turnSeqRef.current || !mountedRef.current || agentStateRef.current !== 'IDLE') return
+
+    const display = stripVocalTags(spoken)
+    const speech = await synthesizeLine(spoken, { emotion: 'chill', intensity: 0 })
+    if (turn !== turnSeqRef.current || !mountedRef.current) return
+
+    lastNudgeRef.current = Date.now()
+    setLastReply(display)
+    appendMessage({
+      role: 'assistant',
+      content: spoken,
+      display,
+      emotion: 'chill',
+      sentiment: 'neutral',
+      idle: true,
+    })
+    await speakReply(spoken, 'chill', turn, speech.audio, null, speech.provider, [])
+    noteActivity()
+  }
+
   function localReply(text, settings) {
     const recentReplies = messagesRef.current
       .filter((message) => message.role === 'assistant')
@@ -739,6 +910,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
     const text = String(rawText || '').replace(/\s+/g, ' ').trim()
     if (!text) return
 
+    noteActivity()
     primeAudio()
     stopPlayback()
     stopRecognition()
@@ -900,79 +1072,10 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
     // Show the line immediately — don't make the caller wait for TTS to finish.
     showReply()
 
-    // ElevenLabs is the voice: a real, natural speaker reading the line. Gemini
-    // stays as the safety net if ElevenLabs is unavailable.
-    const eleven =
-      config.elevenlabs.length && config.elevenlabsVoiceId
-        ? {
-            name: 'ElevenLabs',
-            timeoutMs: 9000,
-            run: (options) =>
-              generateElevenLabsSpeech(result.spoken, {
-                keys: config.elevenlabs,
-                voiceId: config.elevenlabsVoiceId,
-                voiceIds: config.elevenlabsVoiceIds,
-                model: config.elevenlabsModel,
-                emotion: options.emotion,
-                intensity: options.intensity,
-                abortSignal: options.abortSignal,
-              }),
-          }
-        : null
-
-    const gemini =
-      config.gemini.length > 0
-        ? {
-            name: 'Gemini TTS',
-            timeoutMs: 12000,
-            run: (options) =>
-              generateGeminiSpeech(result.spoken, {
-                keys: config.gemini,
-                model: config.geminiTtsModel,
-                voice: config.geminiTtsVoice,
-                languageMode: options.languageMode,
-                intensity: options.intensity,
-                abortSignal: options.abortSignal,
-              }),
-          }
-        : null
-
-    // Orpheus/Groq TTS is retired: it overacts short lines and has no Filipino
-    // voice. Groq still powers the chat model, just never the mascot's audio.
-    const speechProviders = [eleven, gemini].filter(Boolean)
-
-    if (speechProviders.length) {
-      const ttsStarted = performance.now()
-      const ttsDeadline = ttsStarted + 11000
-      for (const provider of speechProviders) {
-        const remaining = ttsDeadline - performance.now()
-        if (remaining < 1500) break
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), provider.timeoutMs)
-        try {
-          result.audio = await withHardTimeout(
-            provider.run({
-              languageMode: settings.languageMode,
-              emotion: nextEmotion,
-              intensity,
-              abortSignal: controller.signal,
-            }),
-            Math.max(1500, Math.min(provider.timeoutMs + 2000, ttsDeadline - performance.now())),
-            provider.name,
-          )
-          result.ttsProvider = provider.name
-          break
-        } catch {
-          // Silent provider failover. The next voice line gets the turn.
-        } finally {
-          clearTimeout(timeout)
-        }
-      }
-      setLatency((previous) => ({
-        ...previous,
-        ttsMs: Math.round(performance.now() - ttsStarted),
-      }))
-    }
+    // ElevenLabs is the voice; Gemini is the safety net.
+    const speech = await synthesizeLine(result.spoken, { emotion: nextEmotion, intensity })
+    result.audio = speech.audio
+    result.ttsProvider = speech.provider
 
     const sessionBeforeSpeak = speechSessionRef.current
     setCaptionWords(result.words || [])
@@ -1014,6 +1117,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
   }
 
   function togglePrimary() {
+    noteActivity()
     primeAudio()
     const current = agentStateRef.current
 
@@ -1129,6 +1233,16 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
     [],
   )
 
+  idleNudgeRef.current = idleNudge
+
+  useEffect(() => {
+    clearTimeout(idleTimerRef.current)
+    if (!mountedRef.current || agentState !== 'IDLE') return undefined
+    const wait = Math.max(5000, IDLE_NUDGE_MS - (Date.now() - lastActivityRef.current))
+    idleTimerRef.current = setTimeout(() => idleNudgeRef.current?.(), wait)
+    return () => clearTimeout(idleTimerRef.current)
+  }, [agentState, lastActivityAt])
+
   useEffect(() => {
     if (!notice?.ttl) return undefined
     const timer = setTimeout(() => {
@@ -1148,6 +1262,7 @@ export function useBanterAgent({ voice, spiceMode, handsFree, delivery = 0 }) {
       clearTimeout(silenceTimerRef.current)
       clearTimeout(autoListenTimerRef.current)
       clearTimeout(webActionTimerRef.current)
+      clearTimeout(idleTimerRef.current)
       llmAbortRef.current?.abort()
       ttsAbortRef.current?.abort()
       cancelBrowserSpeech()

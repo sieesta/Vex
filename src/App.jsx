@@ -241,7 +241,7 @@ export default function App() {
             </p>
           ) : (
             <p className="min-h-12 max-w-md px-2 text-center text-sm leading-relaxed text-zinc-300">
-              {agent.lastReply}
+              {agent.lastReply ? stripVocalTags(agent.lastReply) : ''}
             </p>
           )}
 

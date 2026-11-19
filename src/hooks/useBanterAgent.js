@@ -23,7 +23,7 @@ const MELTDOWN_LINES = [
   "[screaming] AHHH!! [crying] Ayaw ko na... makipag-usap sa'yo... [frustrated sigh] Fuck.",
   '[screaming] WALLAAAA KAAAA BAAANGGGG!!! [crying] Saaasaaabihinngggg matinoooo?... [frustrated sigh] Fuckkkkkkk.',
 ]
-const INITIAL_REPLY = "You're on the air. Say something worth the static."
+const INITIAL_REPLY = '[screaming] HOYYY! GISING!... magsalita ka naman [frustrated sigh].'
 const INITIAL_LATENCY = {
   llmMs: null,
   ttsMs: null,
